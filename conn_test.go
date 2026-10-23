@@ -5917,3 +5917,367 @@ func TestAFailedRunSaysWhy(t *testing.T) {
 	panelSays("with both run again", "test", "")
 	projectsSay("with both run again", "test", "")
 }
+
+// After aa or af hands failed runs to an agent, each handed row in the
+// open project, and its name beneath the project on the projects
+// screen, trade the reason the run failed for ❝ and the title of the
+// conversation that has it, in the gray. Pressing af again starts no
+// second agent on them and says "already with ❝ <title>". A run that
+// is run again and passes turns done and loses its note, and the
+// other, still failed, keeps its own.
+func TestAHandedRunSaysWhoHasIt(t *testing.T) {
+	bin, err := exec.LookPath("tmux")
+	if err != nil {
+		t.Skip("no tmux")
+	}
+	shots := os.Getenv("SHOTS")
+	wear(theme.Dark)
+	t.Cleanup(undress)
+	g := theme.Dark
+
+	scratch, err := os.MkdirTemp("/tmp", "cs-")
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = os.RemoveAll(scratch) })
+	scratch, _ = filepath.EvalSymlinks(scratch)
+	t.Setenv("HOME", scratch)
+	t.Setenv("CLAUDE_CONFIG_DIR", filepath.Join(scratch, ".claude"))
+	t.Setenv("LC_ALL", "C.UTF-8")
+	// claude, as conn starts it with the brief, waits.
+	write(t, filepath.Join(scratch, "bin", "claude"), "#!/bin/sh\nexec sleep 1000\n")
+	if err := os.Chmod(filepath.Join(scratch, "bin", "claude"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("PATH", filepath.Join(scratch, "bin")+":"+os.Getenv("PATH"))
+	web := filepath.Join(scratch, "web")
+	if err := os.MkdirAll(web, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	git(t, web, "init", "-q")
+	git(t, web, "commit", "-q", "--allow-empty", "-m", "first")
+
+	path := write(t, filepath.Join(scratch, "tmux.conf"), conf(g))
+	srv := &tmux.Server{Tmux: bin, Socket: filepath.Join(scratch, "s")}
+	t.Cleanup(func() { _ = srv.Down() })
+	if _, err := srv.Run("-f", path, "new-session", "-d", "-s", sessionName, "-x", "120", "-y", "36", "-c", scratch, "sleep 1000"); err != nil {
+		t.Fatal(err)
+	}
+
+	// Two checks fail, each with its reason and then its verdict; each,
+	// run again, passes.
+	const (
+		testWhy = "login_test.go:42: expected 200, got 500"
+		lintWhy = "main.go:7: x declared and not used"
+		title   = "Fix the failing checks"
+		note    = "❝ " + title
+	)
+	failing := func(name, why string) string {
+		ran := filepath.Join(scratch, "ran-"+name)
+		id, err := startNamed(srv, name, "if [ -e "+ran+" ]; then echo 'ok  web 0.01s'; exit 0; fi; touch "+ran+"; echo '"+why+"'; echo FAIL; echo 'exit status 1'; exit 1", web, web, roleCheck)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if exit, err := waitExit(srv, id); err != nil || exit == "0" {
+			t.Fatalf("%s ended %q, %v, want it failed", name, exit, err)
+		}
+		return id
+	}
+	failing("test", testWhy)
+	failing("lint", lintWhy)
+
+	// The scratch is temporary, which is no project; here it is one.
+	k := newKnown()
+	k.root[web] = web
+	var update func(m model, msg tea.Msg) model
+	update = func(m model, msg tea.Msg) model {
+		if msg == nil {
+			return m
+		}
+		if batch, ok := msg.(tea.BatchMsg); ok {
+			for _, c := range batch {
+				if c != nil {
+					m = update(m, c())
+				}
+			}
+			return m
+		}
+		next, _ := m.Update(msg)
+		return next.(model)
+	}
+	read := func(m model) model { return update(m, m.read()()) }
+	// press types keys, running what each asks, except that the last
+	// key's command is given back to be run by the caller.
+	press := func(m model, keys string) (model, tea.Cmd) {
+		var c tea.Cmd
+		for _, r := range keys {
+			if c != nil {
+				m = update(m, c())
+			}
+			next, cmd := m.Update(tea.KeyPressMsg(tea.Key{Code: r, Text: string(r)}))
+			m, c = next.(model), cmd
+		}
+		return m, c
+	}
+	agents := func() []pane {
+		ps, err := panes(srv)
+		if err != nil {
+			t.Fatal(err)
+		}
+		var out []pane
+		for _, p := range ps {
+			if p.Session != "" {
+				out = append(out, p)
+			}
+		}
+		return out
+	}
+	// The agent that conn started titles its conversation, as Claude
+	// Code does once it has had a turn.
+	encoded := regexp.MustCompile("[^A-Za-z0-9]").ReplaceAllString(web, "-")
+	titleIt := func(a pane) {
+		write(t, filepath.Join(scratch, ".claude", "projects", encoded, a.Session+".jsonl"),
+			`{"type":"user","cwd":`+strconv.Quote(web)+`,"message":{"role":"user","content":"3 runs failed"}}`+"\n"+
+				`{"type":"ai-title","aiTitle":`+strconv.Quote(title)+`}`+"\n")
+	}
+
+	screen := func(m model) (raw, lines []string) {
+		raw, _ = m.draw()
+		lines = make([]string, len(raw))
+		for i := range raw {
+			lines[i] = strings.TrimRight(plainText(raw[i]), " ")
+		}
+		return raw, lines
+	}
+	said := func(m model) string { return strings.Join(strings.Fields(plainText(m.View().Content)), " ") }
+	indent := func(s string) int { return ansi.StringWidth(s) - ansi.StringWidth(strings.TrimLeft(s, " ")) }
+	sgr := regexp.MustCompile("\x1b\\[[0-9;]*m")
+	lastSGR := func(s string) string {
+		all := sgr.FindAllString(s, -1)
+		if len(all) == 0 {
+			return ""
+		}
+		return all[len(all)-1]
+	}
+	grayInk := lastSGR(strings.SplitN(gray.Render("x"), "x", 2)[0])
+	rowOf := func(lines []string, name string) int {
+		re := regexp.MustCompile(`^[▌ ]*\S ` + regexp.QuoteMeta(name) + `(\s|$)`)
+		for i, l := range lines {
+			if re.MatchString(l) {
+				return i
+			}
+		}
+		return -1
+	}
+	shot := 0
+	frame := func(name string, v model) {
+		if shots == "" {
+			return
+		}
+		if shot++; shot > 6 {
+			return
+		}
+		var b strings.Builder
+		fmt.Fprintf(&b, "\x1b]10;%s\x1b\\\x1b]11;%s\x1b\\\x1b[2J\x1b[H", theme.Hex(g.Ink), g.Surface)
+		for _, l := range strings.Split(v.View().Content, "\n") {
+			b.WriteString(l + "\x1b[0m" + strings.Repeat(" ", max(120-ansi.StringWidth(l), 0)) + "\r\n")
+		}
+		if v.screen == onProject {
+			b.WriteString(drawnStatus(t, srv))
+		}
+		if err := os.WriteFile(filepath.Join(shots, name), []byte(strings.TrimSuffix(b.String(), "\r\n")+"\x1b[0m"), 0o644); err != nil {
+			t.Error(err)
+		}
+	}
+
+	// panelSays checks that, under the row of name on the open project's
+	// panel, a gray line starting under the name says want; or, with
+	// want blank, that no line under the name says anything.
+	panelSays := func(what string, m model, name, want string) {
+		t.Helper()
+		raw, lines := screen(m)
+		all := strings.Join(lines, "\n")
+		at := rowOf(lines, name)
+		if at < 0 {
+			t.Fatalf("%s, the panel has no row for %s:\n%s", what, name, all)
+		}
+		col := strings.Index(lines[at], name)
+		next := ""
+		if at+1 < len(lines) {
+			next = lines[at+1]
+		}
+		if want == "" {
+			if indent(next) >= col && strings.TrimSpace(next) != "" {
+				t.Errorf("%s, under %s's row the panel still says %q:\n%s", what, name, strings.TrimSpace(next), all)
+			}
+			return
+		}
+		if strings.TrimSpace(next) != want {
+			t.Errorf("%s, under %s's row the panel says %q, want %q:\n%s", what, name, strings.TrimSpace(next), want, all)
+			return
+		}
+		if indent(next) != ansi.StringWidth(lines[at][:col]) {
+			t.Errorf("%s, the line %q starts at column %d, not under the name in %q", what, next, indent(next), lines[at])
+		}
+		if i := strings.Index(raw[at+1], want); i < 0 || lastSGR(raw[at+1][:i]) != grayInk {
+			t.Errorf("%s, the line %q is not in the gray: %q", what, next, raw[at+1])
+		}
+	}
+	// projectsSay checks that, under web's line on the projects screen,
+	// a line names the run and says want after its name, in the gray;
+	// or, with want blank, that no line names the run with a ❝.
+	projectsSay := func(what string, m model, name, want string) {
+		t.Helper()
+		raw, lines := screen(m)
+		all := strings.Join(lines, "\n")
+		top := -1
+		for i, l := range lines {
+			if strings.Contains(l, "web") && strings.Contains(l, "failed") {
+				top = i
+			}
+		}
+		if want == "" {
+			for _, l := range lines {
+				if strings.Contains(l, name) && strings.Contains(l, "❝") {
+					t.Errorf("%s, the projects screen still names who has %s: %q\n%s", what, name, l, all)
+				}
+			}
+			return
+		}
+		if top < 0 {
+			t.Fatalf("%s, web's line does not say what failed:\n%s", what, all)
+		}
+		for i := top + 1; i < len(lines); i++ {
+			l := lines[i]
+			n, w := strings.Index(l, name), strings.Index(l, want)
+			if n < 0 || w < 0 {
+				continue
+			}
+			if n > w || indent(l) <= indent(lines[top]) {
+				t.Errorf("%s, the line %q does not name %s first, indented under web's %q", what, l, name, lines[top])
+			}
+			if at := strings.Index(raw[i], want); at < 0 || lastSGR(raw[i][:at]) != grayInk {
+				t.Errorf("%s, %q is not in the gray: %q", what, want, raw[i])
+			}
+			return
+		}
+		t.Errorf("%s, no line under web names %s and says %q:\n%s", what, name, want, all)
+	}
+	noReason := func(what string, lines []string, reasons ...string) {
+		t.Helper()
+		for _, l := range lines {
+			for _, why := range reasons {
+				if strings.Contains(l, why) {
+					t.Errorf("%s, a line still says why: %q", what, l)
+				}
+			}
+		}
+	}
+	// projects is the projects screen, as the person reaches it from
+	// the open project with -, the open project left as it was.
+	projects := func(m model) model {
+		next, c := press(m, "-")
+		if c != nil {
+			next = update(next, c())
+		}
+		return read(next)
+	}
+
+	m := model{srv: srv, screen: onProject, cur: project{Name: "web", Root: web}, home: scratch, conn: "conn", known: k, g: g, loaded: true, width: panelWidth, height: 34}
+	m = read(m)
+	panelSays("before it is handed", m, "test", testWhy)
+	panelSays("before it is handed", m, "lint", lintWhy)
+	var lines []string
+
+	// af hands both to one agent, which titles its conversation.
+	m, c := press(m, "af")
+	got := agents()
+	if len(got) != 1 {
+		t.Fatalf("af started %d agents, want 1", len(got))
+	}
+	titleIt(got[0])
+	if c != nil {
+		m = update(m, c())
+	}
+	m = read(m)
+	panelSays("with both handed", m, "test", note)
+	panelSays("with both handed", m, "lint", note)
+	_, lines = screen(m)
+	noReason("with both handed", lines, testWhy, lintWhy)
+	pm := projects(m)
+	projectsSay("with both handed", pm, "test", note)
+	projectsSay("with both handed", pm, "lint", note)
+	_, lines = screen(pm)
+	noReason("with both handed", lines, testWhy, lintWhy)
+	frame("panel.ans", m)
+	frame("projects.ans", pm)
+
+	// af again starts nothing and says who has them.
+	m, c = press(m, "af")
+	if c != nil {
+		m = update(m, c())
+	}
+	m = read(m)
+	if again := agents(); len(again) != 1 {
+		t.Errorf("af again left %d agents, want the one", len(again))
+	}
+	if !strings.Contains(said(m), "already with "+note) {
+		t.Errorf("af again says %q, want it to say already with %s", said(m), note)
+	}
+	panelSays("after af again", m, "test", note)
+	frame("panel-again.ans", m)
+
+	// The agent runs lint again and it passes: lint is done and loses
+	// its note; test, still failed, keeps its.
+	for i, it := range m.items() {
+		if it.row >= 0 && m.rows[it.row].pane != nil && m.rows[it.row].pane.Name == "lint" {
+			m.cursor = i
+		}
+	}
+	m, c = press(m, "rr")
+	if c != nil {
+		m = update(m, c())
+	}
+	var lint pane
+	for _, r := range m.rows {
+		if r.pane != nil && r.pane.Name == "lint" {
+			lint = *r.pane
+		}
+	}
+	if exit, err := waitExit(srv, lint.ID); err != nil || exit != "0" {
+		t.Fatalf("lint run again ended %q, %v, want 0", exit, err)
+	}
+	m = read(m)
+	for _, r := range m.rows {
+		if r.pane != nil && r.pane.Name == "lint" && r.state != "done" {
+			t.Errorf("lint run again reads %q, want done", r.state)
+		}
+	}
+	panelSays("with lint passing", m, "lint", "")
+	panelSays("with lint passing", m, "test", note)
+	pm = projects(m)
+	projectsSay("with lint passing", pm, "lint", "")
+	projectsSay("with lint passing", pm, "test", note)
+
+	// And test passing too, nothing is left to say.
+	for i, it := range m.items() {
+		if it.row >= 0 && m.rows[it.row].pane != nil && m.rows[it.row].pane.Name == "test" {
+			m.cursor = i
+		}
+	}
+	m, c = press(m, "rr")
+	if c != nil {
+		m = update(m, c())
+	}
+	for _, r := range m.rows {
+		if r.pane != nil && r.pane.Name == "test" {
+			if exit, err := waitExit(srv, r.pane.ID); err != nil || exit != "0" {
+				t.Fatalf("test run again ended %q, %v, want 0", exit, err)
+			}
+		}
+	}
+	m = read(m)
+	panelSays("with both passing", m, "test", "")
+	panelSays("with both passing", m, "lint", "")
+	projectsSay("with both passing", projects(m), "test", "")
+}

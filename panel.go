@@ -99,6 +99,9 @@ type model struct {
 	// and under the rows.
 	broken []pane
 	why    map[string]string
+	// Every run that failed, with a reason or none, in the order the
+	// panes stand: what tab goes to when nobody has it.
+	failed []pane
 	// The failed runs handed to an agent, by pane: who has them, and the
 	// title of that conversation as last read.
 	handed map[string]handedTo
@@ -574,6 +577,7 @@ type read struct {
 	asks     map[string]string // what each of them is stopped on, by pane; blank for a turn handed back
 	broken   []pane            // the panes whose run failed, and why by pane
 	why      map[string]string
+	failed   []pane            // every pane whose run failed, with a reason or none
 	with     map[string]string // the failed runs an agent has, by pane, and what its conversation is called
 	// What the workspace shows, blank for a hold, and whether it stands:
 	// a pane closed there leaves the panel alone in the window, and one
@@ -762,6 +766,7 @@ func (m model) read() tea.Cmd {
 			case p.started() && p.Exit != "" && p.Exit != "0":
 				failed[root]++
 				broke++
+				r.failed = append(r.failed, p)
 				if h, ok := handed[p.ID]; ok {
 					if r.with == nil {
 						r.with = map[string]string{}
@@ -805,6 +810,9 @@ func (m model) read() tea.Cmd {
 				turning[k.rootOf(r.Cwd)]++
 			}
 		}
+		// Panes swap places as the workspace shows them, so the failed
+		// stand in the order they were made, which holds still.
+		sort.SliceStable(r.failed, func(i, j int) bool { return paneNo(r.failed[i].ID) < paneNo(r.failed[j].ID) })
 		sayCounts(srv, total, len(back), broke)
 		// What conn holds a pane in is a project while it does, a
 		// checkout or not.
@@ -1162,7 +1170,7 @@ func (m model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m.takeTheme(msg), nil
 	case read:
 		m.waiting, m.waitTitle, m.waitAsk = msg.waiting, msg.titles, msg.asks
-		m.broken, m.why, m.with = msg.broken, msg.why, msg.with
+		m.broken, m.why, m.with, m.failed = msg.broken, msg.why, msg.with, msg.failed
 		// A run no longer failed has been given back, unless it was
 		// handed after this was read.
 		for id, h := range m.handed {
@@ -1622,7 +1630,7 @@ func (m model) useClient(c stacked, record bool) (tea.Model, tea.Cmd) {
 // conversation waiting in a terminal conn does not hold is not one conn
 // can show.
 func (m model) nextWaiting() (tea.Model, tea.Cmd) {
-	if len(m.waiting) == 0 {
+	if len(m.tabbed()) == 0 {
 		m.note = "nothing waits"
 		return m, nil
 	}
@@ -1634,13 +1642,26 @@ func (m model) nextWaiting() (tea.Model, tea.Cmd) {
 // nextPane is the waiting pane tab goes to next: the one after the last
 // it went to, round to the first. There must be one waiting.
 func (m model) nextPane() pane {
-	next := m.waiting[0]
-	for i, p := range m.waiting {
+	tabbed := m.tabbed()
+	next := tabbed[0]
+	for i, p := range tabbed {
 		if p.ID == m.lastWaiting {
-			next = m.waiting[(i+1)%len(m.waiting)]
+			next = tabbed[(i+1)%len(tabbed)]
 		}
 	}
 	return next
+}
+
+// tabbed is the panes tab goes through: the conversations waiting on
+// you, then each failed run nobody has been handed.
+func (m model) tabbed() []pane {
+	out := append([]pane(nil), m.waiting...)
+	for _, p := range m.failed {
+		if !m.isHanded(p.ID) && m.with[p.ID] == "" {
+			out = append(out, p)
+		}
+	}
+	return out
 }
 
 // waitingIn is the waiting panes that are in a project, each with the
@@ -2876,7 +2897,7 @@ func (m model) drawProjects() ([]string, foot) {
 		}
 		// Under it, who waits and what it is on, and the one tab goes to.
 		var next string
-		if len(m.waiting) > 0 {
+		if len(m.tabbed()) > 0 {
 			next = m.nextPane().ID
 		}
 		for _, w := range m.waitingIn(p) {
@@ -4077,4 +4098,11 @@ func (m model) marked(p project) bool {
 		return p.Root == m.opening.Root && p.Group == m.opening.Group
 	}
 	return m.isOpen(p)
+}
+
+// paneNo is the number in a tmux pane id, %7 being 7: the order panes
+// were made in.
+func paneNo(id string) int {
+	n, _ := strconv.Atoi(strings.TrimPrefix(id, "%"))
+	return n
 }

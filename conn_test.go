@@ -6281,3 +6281,262 @@ func TestAHandedRunSaysWhoHasIt(t *testing.T) {
 	panelSays("with both passing", m, "lint", "")
 	projectsSay("with both passing", projects(m), "test", "")
 }
+
+// With a run that failed and that no agent has, tab goes to it as it
+// goes to a conversation that waits, after those: it opens the run's
+// project with the cursor on its row and its output in the workspace,
+// from the projects screen and from inside a process, and each press
+// goes on to the next. A failure counts whether or not it printed a
+// reason (only FAIL, or nothing at all); one handed to an agent is
+// skipped; and "nothing waits" is said only when nothing waits and
+// nothing unhanded has failed.
+func TestTabGoesToWhatFailed(t *testing.T) {
+	bin, err := exec.LookPath("tmux")
+	if err != nil {
+		t.Skip("no tmux")
+	}
+	shots := os.Getenv("SHOTS")
+	wear(theme.Dark)
+	t.Cleanup(undress)
+	g := theme.Dark
+
+	scratch, err := os.MkdirTemp("/tmp", "cs-")
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = os.RemoveAll(scratch) })
+	scratch, _ = filepath.EvalSymlinks(scratch)
+	t.Setenv("HOME", scratch)
+	t.Setenv("CLAUDE_CONFIG_DIR", filepath.Join(scratch, ".claude"))
+	t.Setenv("LC_ALL", "C.UTF-8")
+	// claude, as conn starts it with the brief, waits.
+	write(t, filepath.Join(scratch, "bin", "claude"), "#!/bin/sh\nexec sleep 1000\n")
+	if err := os.Chmod(filepath.Join(scratch, "bin", "claude"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("PATH", filepath.Join(scratch, "bin")+":"+os.Getenv("PATH"))
+	repo := func(name string) string {
+		dir := filepath.Join(scratch, name)
+		if err := os.MkdirAll(dir, 0o755); err != nil {
+			t.Fatal(err)
+		}
+		git(t, dir, "init", "-q")
+		git(t, dir, "commit", "-q", "--allow-empty", "-m", "first")
+		return dir
+	}
+	web, api := repo("web"), repo("api")
+
+	path := write(t, filepath.Join(scratch, "tmux.conf"), conf(g))
+	srv := &tmux.Server{Tmux: bin, Socket: filepath.Join(scratch, "s")}
+	t.Cleanup(func() { _ = srv.Down() })
+	out, err := srv.Run("-f", path, "new-session", "-d", "-s", sessionName, "-x", "120", "-y", "36", "-c", scratch, "-P", "-F", "#{window_id} #{pane_id}", "sleep 1000")
+	if err != nil {
+		t.Fatal(err)
+	}
+	// conn's window: the panel, and beside it the workspace tab shows
+	// a process in.
+	win, own, _ := strings.Cut(strings.TrimSpace(out), " ")
+	if _, err := srv.Do(tmux.SetPane(own, panelMark, "1")); err != nil {
+		t.Fatal(err)
+	}
+	ws := newWorkspace(srv, win, own, "/x")
+	ws.hold = "sleep 1000"
+
+	// In web four checks fail: one with its reason and then its verdict,
+	// one with only FAIL, one with nothing to say, and one that will be
+	// handed to an agent. In api a conversation waits.
+	const (
+		vetWhy = "main.go:7: x declared and not used"
+		title  = "Rate-limit the login endpoint"
+		convID = "aaaaaaaa-0000-0000-0000-000000000001"
+	)
+	failing := func(name, command string) string {
+		id, err := startNamed(srv, name, command, web, web, roleCheck)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if exit, err := waitExit(srv, id); err != nil || exit == "0" {
+			t.Fatalf("%s ended %q, %v, want it failed", name, exit, err)
+		}
+		return id
+	}
+	testID := failing("test", "echo FAIL; exit 1")
+	lintID := failing("lint", "exit 3")
+	vetID := failing("vet", "echo '"+vetWhy+"'; echo FAIL; echo 'exit status 1'; exit 1")
+	failedIDs := map[string]string{testID: "test", lintID: "lint", vetID: "vet"}
+
+	encoded := regexp.MustCompile("[^A-Za-z0-9]").ReplaceAllString(api, "-")
+	write(t, filepath.Join(scratch, ".claude", "projects", encoded, convID+".jsonl"),
+		`{"type":"user","cwd":`+strconv.Quote(api)+`,"message":{"role":"user","content":"hello"}}`+"\n"+
+			`{"type":"ai-title","aiTitle":`+strconv.Quote(title)+`}`+"\n")
+	convPane, err := openWindow(srv, "api", api, "sleep 1000", convID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	pid, err := srv.Run("display", "-p", "-t", convPane, "#{pane_pid}")
+	if err != nil {
+		t.Fatal(err)
+	}
+	instance := filepath.Join(scratch, ".claude", "sessions", strings.TrimSpace(pid)+".json")
+	conversation := func(status string) {
+		write(t, instance, `{"sessionId":"`+convID+`","status":"`+status+`","cwd":"`+api+`"}`)
+	}
+	conversation("waiting")
+
+	// The scratch is temporary, which is no project; here both are.
+	k := newKnown()
+	k.root[web], k.root[api] = web, api
+	var update func(m model, msg tea.Msg) model
+	update = func(m model, msg tea.Msg) model {
+		if msg == nil {
+			return m
+		}
+		if batch, ok := msg.(tea.BatchMsg); ok {
+			for _, c := range batch {
+				if c != nil {
+					m = update(m, c())
+				}
+			}
+			return m
+		}
+		next, _ := m.Update(msg)
+		return next.(model)
+	}
+	read := func(m model) model { return update(m, m.read()()) }
+	// press types a key and runs what it asks.
+	press := func(m model, k tea.Key) model {
+		next, c := m.Update(tea.KeyPressMsg(k))
+		m = next.(model)
+		if c != nil {
+			m = update(m, c())
+		}
+		return m
+	}
+	keys := func(m model, s string) model {
+		for _, r := range s {
+			m = press(m, tea.Key{Code: r, Text: string(r)})
+		}
+		return m
+	}
+	said := func(m model) string { return strings.Join(strings.Fields(plainText(m.View().Content)), " ") }
+	cursorOn := func(m model) string {
+		if r, ok := m.under(); ok && r.pane != nil {
+			return r.pane.ID
+		}
+		return ""
+	}
+	// where says what the person has met after a tab: the project open,
+	// the row under the cursor, the process the keys are in, the one the
+	// workspace shows.
+	where := func(m model) string {
+		name := func(id string) string {
+			switch {
+			case id == convPane:
+				return "the conversation"
+			case failedIDs[id] != "":
+				return failedIDs[id]
+			}
+			return fmt.Sprintf("%q", id)
+		}
+		return fmt.Sprintf("project %s, cursor on %s, in %s, workspace %s", filepath.Base(m.cur.Root), name(cursorOn(m)), name(m.in), name(inWorkspace(t, ws).ID))
+	}
+	// wentTo checks a tab landed on a process: its project open, the
+	// cursor on its row, the keys in it, its output in the workspace.
+	wentTo := func(what string, m model, id, dir string) {
+		t.Helper()
+		if m.screen != onProject || m.cur.Root != dir || m.in != id || inWorkspace(t, ws).ID != id || (id != convPane && cursorOn(m) != id) {
+			t.Fatalf("%s, tab did not open %s's project with the cursor on %s and its output in the workspace: it is %s (note %q)", what, filepath.Base(dir), failedIDs[id], where(m), m.note)
+		}
+	}
+
+	m := model{srv: srv, ws: ws, own: own, screen: onProject, cur: project{Name: "web", Root: web}, home: scratch, conn: "conn", known: k, g: g, loaded: true, width: panelWidth, height: 34}
+	m = read(m)
+	// vet is handed to an agent with aa, the cursor on its row.
+	for i, it := range m.items() {
+		if it.row >= 0 && m.rows[it.row].pane != nil && m.rows[it.row].pane.ID == vetID {
+			m.cursor = i
+		}
+	}
+	if cursorOn(m) != vetID {
+		t.Fatalf("web's panel has no row for vet")
+	}
+	m = read(keys(m, "aa"))
+	if !m.isHanded(vetID) || m.isHanded(testID) || m.isHanded(lintID) {
+		t.Fatalf("aa on vet handed test %v, lint %v, vet %v, want vet alone", m.isHanded(testID), m.isHanded(lintID), m.isHanded(vetID))
+	}
+
+	// shot saves what the person sees, the workspace's pane beside it.
+	shot := 0
+	frame := func(name string, v model) {
+		if shots == "" {
+			return
+		}
+		if shot++; shot > 6 {
+			return
+		}
+		var b strings.Builder
+		fmt.Fprintf(&b, "\x1b]10;%s\x1b\\\x1b]11;%s\x1b\\\x1b[2J\x1b[H", theme.Hex(g.Ink), g.Surface)
+		for _, l := range strings.Split(v.View().Content, "\n") {
+			b.WriteString(l + "\x1b[0m" + strings.Repeat(" ", max(120-ansi.StringWidth(l), 0)) + "\r\n")
+		}
+		if v.screen == onProject {
+			b.WriteString(drawnStatus(t, srv))
+		}
+		if err := os.WriteFile(filepath.Join(shots, name), []byte(strings.TrimSuffix(b.String(), "\r\n")+"\x1b[0m"), 0o644); err != nil {
+			t.Error(err)
+		}
+	}
+
+	// From the projects screen: the conversation that waits first, then
+	// each failure nobody has, in the order their panes stand, vet
+	// skipped as an agent has it, and round to the first.
+	p := m
+	p.screen, p.cursor = onProjects, 0
+	p = read(p)
+	if !strings.Contains(said(p), "3 failed") {
+		t.Errorf("the projects screen does not say web's 3 failed:\n%s", said(p))
+	}
+	frame("projects.ans", p)
+	p = press(p, tea.Key{Code: tea.KeyTab})
+	wentTo("the first tab from the projects screen", p, convPane, api)
+	p = press(p, tea.Key{Code: tea.KeyTab})
+	wentTo("the second tab, the conversation having been gone to", p, testID, web)
+	frame("panel.ans", p)
+	p = press(p, tea.Key{Code: tea.KeyTab})
+	wentTo("the third tab", p, lintID, web)
+	p = press(p, tea.Key{Code: tea.KeyTab})
+	wentTo("the fourth tab, vet being with an agent", p, convPane, api)
+	if t.Failed() {
+		t.FailNow()
+	}
+
+	// The conversation answered, from inside it: tab goes to the
+	// failures alone, round and round.
+	conversation("busy")
+	in := read(p)
+	in = press(in, tea.Key{Code: tea.KeyTab})
+	wentTo("a tab from inside the conversation, its question answered", in, testID, web)
+	in = press(in, tea.Key{Code: tea.KeyTab})
+	wentTo("the next tab from inside a process", in, lintID, web)
+	in = press(in, tea.Key{Code: tea.KeyTab})
+	wentTo("the tab after the last failure", in, testID, web)
+	if strings.Contains(said(in), "nothing waits") {
+		t.Errorf("with failures nobody has, tab says nothing waits")
+	}
+
+	// Handed to an agent with af, the rest are skipped too; then
+	// nothing waits and nothing unhanded has failed.
+	in = read(keys(in, "af"))
+	if !in.isHanded(testID) || !in.isHanded(lintID) {
+		t.Fatalf("af handed test %v, lint %v, want both", in.isHanded(testID), in.isHanded(lintID))
+	}
+	before := where(in)
+	in = press(in, tea.Key{Code: tea.KeyTab})
+	if got := said(in); !strings.Contains(got, "nothing waits") {
+		t.Errorf("with every failure handed and nothing waiting, tab says %q, want nothing waits", got)
+	}
+	if after := where(in); after != before {
+		t.Errorf("with nothing waiting, tab moved from %s to %s", before, after)
+	}
+	frame("nothing-waits.ans", in)
+}

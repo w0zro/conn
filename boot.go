@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"slices"
@@ -10,6 +11,7 @@ import (
 	"github.com/w0zro/conn/internal/console"
 	"github.com/w0zro/conn/internal/station"
 	"github.com/w0zro/conn/internal/theme"
+	"github.com/w0zro/conn/internal/tmux"
 )
 
 // The boot console is what the panel comes up on when it brings a
@@ -171,8 +173,40 @@ func (m model) consoleKey(k string) (tea.Model, tea.Cmd) {
 		return m, nil
 	}
 	m.boot = nil
+	m.unzoom()
 	m.openWorkspace()
 	return m, m.read()
+}
+
+// bootAgain brings the console up on a panel already beside the work:
+// the panel is given the whole window and the ground, as it had when it
+// brought the server up, and the console comes on from the start.
+func (m model) bootAgain() (tea.Model, tea.Cmd) {
+	m.boot = newBooting(m.home, version)
+	if m.own != "" {
+		_, _ = m.srv.Run("set-option", "-pu", "-t", m.own, "window-style")
+		if zoomed, _ := m.srv.Display(m.own, "#{window_zoomed_flag}"); zoomed != "1" {
+			_, _ = m.srv.Do(tmux.ToggleZoom(m.own))
+		}
+	}
+	return m, tea.Batch(m.boot.start()...)
+}
+
+// unzoom gives the workspace back its half of a wide window, which the
+// console had. Narrow, the window stays zoomed on the panel: the two
+// take turns.
+func (m model) unzoom() {
+	if m.own == "" {
+		return
+	}
+	out, err := m.srv.Display(m.own, "#{window_zoomed_flag} #{window_width}")
+	if err != nil {
+		return
+	}
+	var zoomed, width int
+	if _, err := fmt.Sscan(out, &zoomed, &width); err == nil && zoomed == 1 && width >= narrowBelow {
+		_, _ = m.srv.Do(tmux.ToggleZoom(m.own))
+	}
 }
 
 // consoleHints is what the key bar says under the console.

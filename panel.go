@@ -1467,6 +1467,8 @@ func (m model) projectKey(k tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		if r, ok := m.under(); ok {
 			return m.talk(r)
 		}
+	case "b":
+		return m.bootAgain()
 	case "?":
 		m.helping = true
 	case ",":
@@ -2659,7 +2661,7 @@ var (
 	projectsHints = []keyHint{{"type", "find"}, {"enter", "open"}, {"ctrl-x", "stop"}, {"esc", "back"}, {"ctrl-c", "leave"}, {"?", "keys"}}
 	// A project's keys past the verbs, which the keys screen draws as a
 	// table against their objects.
-	projectKeys = []keyHint{{"enter", "goes to it"}, {"j k", "move, around at the ends"}, {"g G", "top, bottom"}, {"tab", "what waits"}, {"/", "search output"}, {"!", "run a command, or a shell"}, {"c", "talk to it"}, {"esc", "back into the process you were in"}, {"ctrl-space", "the one before it"}, {"-", "projects"}, {",", "settings"}, {"q", "leave"}}
+	projectKeys = []keyHint{{"enter", "goes to it"}, {"j k", "move, around at the ends"}, {"g G", "top, bottom"}, {"tab", "what waits"}, {"/", "search output"}, {"!", "run a command, or a shell"}, {"c", "talk to it"}, {"esc", "back into the process you were in"}, {"ctrl-space", "the one before it"}, {"-", "projects"}, {",", "settings"}, {"b", "the boot console"}, {"q", "leave"}}
 	// The verbs, and the objects each takes, as the keys screen tables
 	// them: a chord a cell, blank where the verb takes no such object.
 	verbKeys   = []keyHint{{"s", "start"}, {"x", "stop"}, {"r", "restart"}, {"a", "agent"}}

@@ -4,6 +4,8 @@ import (
 	"strings"
 	"testing"
 
+	tea "charm.land/bubbletea/v2"
+
 	"github.com/w0zro/conn/internal/console"
 	"github.com/w0zro/conn/internal/station"
 	"github.com/w0zro/conn/internal/theme"
@@ -67,5 +69,23 @@ func TestConsoleReadoutWaitsForTheStation(t *testing.T) {
 	next, _ = m.bootMsg(stageDue{})
 	if next.(model).boot.stage != console.StageChecks {
 		t.Errorf("the beat after the readout is not the first check: %d", next.(model).boot.stage)
+	}
+}
+
+// b on a project brings the console up again from the start, and a key
+// at the end goes back to the project.
+func TestBIsTheConsoleAgain(t *testing.T) {
+	m := model{width: 120, height: 40, g: theme.On(true), screen: onProject, cur: project{Root: "/p"}}
+	next, cmd := m.projectKey(tea.KeyPressMsg{Code: 'b', Text: "b"})
+	m = next.(model)
+	if m.boot == nil || m.boot.stage != console.StageHeader || cmd == nil {
+		t.Fatalf("b did not bring the console up from the start: %+v", m.boot)
+	}
+	for range 2 {
+		next, _ = m.consoleKey("j")
+		m = next.(model)
+	}
+	if m.boot != nil || m.screen != onProject || m.cur.Root != "/p" {
+		t.Errorf("the console put away is not back on the project: boot %v, screen %v, %q", m.boot, m.screen, m.cur.Root)
 	}
 }

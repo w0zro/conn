@@ -19,6 +19,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"syscall"
 	"testing"
 	"time"
 	"unicode/utf8"
@@ -6590,14 +6591,173 @@ func describeProcs(procs []proc) string {
 	return describePanes(ps)
 }
 
+// withoutLsof is a Linux machine with ps and tmux and no lsof: nothing to read
+// ports from but what Linux itself records.
+func withoutLsof(t *testing.T) {
+	t.Helper()
+	if runtime.GOOS != "linux" {
+		t.Skip("what Linux records")
+	}
+	bin := t.TempDir()
+	for _, tool := range []string{"ps", "tmux"} {
+		if found, err := exec.LookPath(tool); err == nil {
+			if err := os.Symlink(found, filepath.Join(bin, tool)); err != nil {
+				t.Fatal(err)
+			}
+		}
+	}
+	t.Setenv("PATH", bin)
+}
+
+// listenHere is a port this process listens on, held open until the
+// test ends.
+func listenHere(t *testing.T) string {
+	t.Helper()
+	ln, err := net.Listen("tcp4", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = ln.Close() })
+	return strconv.Itoa(ln.Addr().(*net.TCPAddr).Port)
+}
+
+// listenUnowned is a port something listens on that no process holds a
+// handle to, so no process can be said to own it, as one owned by
+// another user cannot be read: the listening socket is sent down a unix
+// socket and left unreceived.
+func listenUnowned(t *testing.T) string {
+	t.Helper()
+	ln, err := net.Listen("tcp4", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	port := strconv.Itoa(ln.Addr().(*net.TCPAddr).Port)
+	f, err := ln.(*net.TCPListener).File()
+	if err != nil {
+		t.Fatal(err)
+	}
+	pair, err := syscall.Socketpair(syscall.AF_UNIX, syscall.SOCK_STREAM, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = syscall.Close(pair[0]); _ = syscall.Close(pair[1]) })
+	if err := syscall.Sendmsg(pair[0], []byte{0}, syscall.UnixRights(int(f.Fd())), nil, 0); err != nil {
+		t.Fatal(err)
+	}
+	_ = f.Close()
+	_ = ln.Close()
+	c, err := net.Dial("tcp4", "127.0.0.1:"+port)
+	if err != nil {
+		t.Fatalf("the socket sent away stopped listening on :%s: %v", port, err)
+	}
+	_ = c.Close()
+	return port
+}
+
+// typedOnProjects is what the projects screen says once :port is typed
+// in its find, after a read of this machine.
+func typedOnProjects(t *testing.T, port string) []string {
+	t.Helper()
+	srv, _, _ := scratchServer(t)
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	t.Setenv("CLAUDE_CONFIG_DIR", filepath.Join(home, ".claude"))
+	withoutLsof(t)
+	here, err := os.Getwd()
+	if err != nil {
+		t.Fatal(err)
+	}
+	k := newKnown()
+	k.root[here] = "" // outside every project
+	m := model{srv: srv, screen: onProjects, home: "/nonexistent", width: 120, height: 36, known: k}
+	next, _ := m.Update(m.read()())
+	m = next.(model)
+	for _, r := range ":" + port {
+		m, _ = press(t, m, string(r))
+	}
+	return plainLines(regexp.MustCompile("\x1b\\[[0-9;]*m"), m)
+}
+
+// Where lsof is not installed, typing :port names the process that
+// listens there, with its pid, its command and the directory it runs in.
+func TestListeningWithoutLsofNamesTheHolderOfATypedPort(t *testing.T) {
+	port := listenHere(t)
+	lines := typedOnProjects(t, port)
+	screen := strings.Join(lines, "\n")
+	at := -1
+	for i, l := range lines {
+		if strings.Contains(l, "holds :"+port) {
+			at = i
+		}
+	}
+	if at < 0 || at+1 >= len(lines) {
+		t.Fatalf("typing :%s does not say what holds it:\n%s", port, screen)
+	}
+	command := filepath.Base(os.Args[0])
+	command = command[:min(len(command), 15)]
+	if !strings.Contains(lines[at], command) {
+		t.Errorf("%q does not name %s as the holder", lines[at], command)
+	}
+	here, _ := os.Getwd()
+	if under := lines[at+1]; !strings.Contains(under, strconv.Itoa(os.Getpid())) || !strings.Contains(under, here) {
+		t.Errorf("under the holder, %q does not say its pid %d and its directory %s", under, os.Getpid(), here)
+	}
+	if strings.Contains(screen, "nothing holds") {
+		t.Errorf("typing :%s says nothing holds it:\n%s", port, screen)
+	}
+}
+
+// Where lsof is not installed and a port is listened on by something
+// conn cannot attribute to a process, typing it says conn can't see
+// ports and why, and never that nothing holds it.
+func TestListeningWithoutLsofSaysConnCannotSeeAnUnattributablePort(t *testing.T) {
+	port := listenUnowned(t)
+	screen := strings.Join(typedOnProjects(t, port), "\n")
+	if !strings.Contains(screen, "conn can't see ports: lsof is not installed") {
+		t.Errorf("typing :%s does not say conn can't see ports:\n%s", port, screen)
+	}
+	if strings.Contains(screen, "nothing holds") {
+		t.Errorf("typing :%s says nothing holds it, though something listens there:\n%s", port, screen)
+	}
+}
+
+// Where lsof is not installed, conn x :port reaches the process that
+// listens there: the address finds it by its pid.
+func TestListeningWithoutLsofFindsTheHolderForAVerb(t *testing.T) {
+	if _, err := exec.LookPath("tmux"); err != nil {
+		t.Skip("no tmux")
+	}
+	scratch := t.TempDir()
+	t.Setenv("CONN_SOCKET", filepath.Join(scratch, "s"))
+	t.Setenv("HOME", scratch)
+	withoutLsof(t)
+	port := listenHere(t)
+	h, err := readHere(scratch, scratch)
+	if err != nil {
+		t.Fatal(err)
+	}
+	p, err := h.find(":" + port)
+	if err != nil || p.PID != os.Getpid() {
+		t.Errorf(":%s found pid %d, %v; want this process, %d", port, p.PID, err, os.Getpid())
+	}
+}
+
+// Where lsof is not installed, a process conn started shows the ports
+// it listens on in its row.
+func TestListeningWithoutLsofShowsPortsOnARow(t *testing.T) {
+	withoutLsof(t)
+	port := listenHere(t)
+	procs := machine([]pane{{ID: "%1", PID: os.Getpid(), Command: "test", Dir: "/p"}}, nil, listening(), parents(), connections())
+	if len(procs) != 1 || !slices.Contains(procs[0].Ports, port) {
+		t.Errorf("the row of the process listening on :%s shows ports %s", port, describeProcs(procs))
+	}
+}
+
 // Where lsof is not installed, a process that listens still shows the
 // ports it listens on, read from what Linux records: every listening
 // socket, on either address family, and none that merely connects.
 func TestListeningWithoutLsof(t *testing.T) {
-	if runtime.GOOS != "linux" {
-		t.Skip("what Linux records")
-	}
-	t.Setenv("PATH", t.TempDir())
+	withoutLsof(t)
 	v4, err := net.Listen("tcp4", "127.0.0.1:0")
 	if err != nil {
 		t.Fatal(err)

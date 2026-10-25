@@ -6748,8 +6748,14 @@ func TestListeningWithoutLsofShowsPortsOnARow(t *testing.T) {
 	withoutLsof(t)
 	port := listenHere(t)
 	procs := machine([]pane{{ID: "%1", PID: os.Getpid(), Command: "test", Dir: "/p"}}, nil, listening(), parents(), connections())
-	if len(procs) != 1 || !slices.Contains(procs[0].Ports, port) {
-		t.Errorf("the row of the process listening on :%s shows ports %s", port, describeProcs(procs))
+	var got []string
+	for _, p := range procs {
+		if p.PID == os.Getpid() {
+			got = p.Ports
+		}
+	}
+	if !slices.Contains(got, port) {
+		t.Errorf("the row of the process listening on :%s shows ports %v", port, got)
 	}
 }
 

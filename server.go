@@ -642,6 +642,7 @@ const paneFormat = "#{pane_id} #{window_id} #{pane_dead} #{pane_pid} #{pane_tty}
 const (
 	projectFormat = "#{pane_id} #{" + projectMark + "}"
 	runFormat     = "#{pane_id} #{" + runMark + "}"
+	startFormat   = "#{pane_id} #{pane_start_path}"
 )
 
 // panes is every pane in the server, each where it stands.
@@ -658,7 +659,24 @@ func panes(srv *tmux.Server) ([]pane, error) {
 	if err != nil {
 		return nil, err
 	}
-	return withRuns(inProjects(parsePanes(out), byPane(projects)), byPane(runs)), nil
+	starts, err := srv.Run("list-panes", "-s", "-t", sessionName, "-F", startFormat)
+	if err != nil {
+		return nil, err
+	}
+	return withRuns(inProjects(whereStarted(parsePanes(out), byPane(starts)), byPane(projects)), byPane(runs)), nil
+}
+
+// whereStarted puts a pane tmux has not yet started its command in where it
+// was started. Until the command runs, what runs in the pane is tmux's
+// own fork, and on Linux tmux says the fork stands in the server's
+// directory, so a process just started would stand in no project.
+func whereStarted(ps []pane, starts map[string]string) []pane {
+	for i := range ps {
+		if ps[i].Command == "tmux" && starts[ps[i].ID] != "" {
+			ps[i].Path = starts[ps[i].ID]
+		}
+	}
+	return ps
 }
 
 // byPane is a mark read a line a pane, by the pane's id, for the

@@ -465,6 +465,13 @@ func TestParsePanes(t *testing.T) {
 	if got[2].Dir != "/Users/me/my project" || got[2].Path != "/p" || got[0].Dir != "/Users/me/my project" {
 		t.Errorf("inProjects = %+v", got)
 	}
+	// A pane tmux has not yet started its command in stands where it
+	// was started, not in the server's directory, which tmux says its
+	// fork stands in on Linux.
+	forked := whereStarted([]pane{{ID: "%5", Command: "tmux", Path: "/srv"}, {ID: "%6", Command: "zsh", Path: "/a"}}, byPane("%5 /p/web\n%6 /p/api\n"))
+	if forked[0].Path != "/p/web" || forked[1].Path != "/a" {
+		t.Errorf("whereStarted = %+v", forked)
+	}
 }
 
 // What runs in conn comes first, then what runs elsewhere, then the

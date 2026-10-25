@@ -121,6 +121,7 @@ type model struct {
 	// The projects screen.
 	projects []project
 	procs    []proc
+	unseen   []string // ports something listens on that conn cannot attribute
 	loaded   bool
 
 	// A project: what runs in it, and its conversations at rest, which
@@ -570,6 +571,7 @@ type read struct {
 	at       time.Time // when the panes were listed
 	projects []project
 	procs    []proc // what listens on the machine, for the projects screen's port find
+	unseen   []string
 	root     string
 	rows     []row
 	rest     []row             // the project's conversations at rest
@@ -750,6 +752,7 @@ func (m model) read() tea.Cmd {
 		back := k.handedBack(held, live, active)
 		procs := machine(ps, live, listening(), parents(), connections())
 		r.procs = procs
+		r.unseen = unseenPorts()
 		listens := map[string]bool{}
 		for _, p := range procs {
 			if p.pane != nil && len(p.Ports) > 0 {
@@ -1196,6 +1199,7 @@ func (m model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 		}
 		m.procs = msg.procs
+		m.unseen = msg.unseen
 		// The first read, with a process standing in the workspace: the
 		// panel has been started again over it, and opens on it.
 		if !m.loaded && msg.shown != "" && msg.shownOK && m.known.rootOf(msg.shownDir) != "" {
@@ -2966,7 +2970,11 @@ func (m model) drawOutside(port string, inProject bool) []string {
 		}
 		out = append(out, at(gray.Render(what)))
 	}
-	if len(out) == 0 && !inProject {
+	switch {
+	case len(out) > 0 || inProject:
+	case slices.Contains(m.unseen, port):
+		out = append(out, at(faint.Render("conn can't see ports: lsof is not installed")))
+	default:
 		out = append(out, at(faint.Render("nothing holds :"+port)))
 	}
 	return out

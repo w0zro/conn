@@ -220,8 +220,13 @@ func uniq(ss []string) []string {
 	return out
 }
 
-// listening is the TCP ports each process listens on, from lsof.
+// listening is the TCP ports each process listens on, from lsof, or
+// where it is not installed, from what Linux records.
 func listening() map[int][]string {
+	if !hasLsof() {
+		held, _ := procListening()
+		return held
+	}
 	out, _ := exec.Command("lsof", "-nP", "-iTCP", "-sTCP:LISTEN", "-Fpn").Output()
 	return parseListening(string(out))
 }
@@ -261,8 +266,11 @@ func parents() map[int]int {
 	return m
 }
 
-// describe is where each process runs and what it is, from lsof.
+// describe is where each process runs and what it is, from lsof or /proc.
 func describe(pids []int) (cwd, comm map[int]string) {
+	if !hasLsof() {
+		return procDescribe(pids)
+	}
 	list := make([]string, len(pids))
 	for i, p := range pids {
 		list[i] = strconv.Itoa(p)

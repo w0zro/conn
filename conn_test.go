@@ -15,6 +15,7 @@ import (
 	"reflect"
 	"regexp"
 	"runtime"
+	"slices"
 	"strconv"
 	"strings"
 	"sync"
@@ -6587,4 +6588,40 @@ func describeProcs(procs []proc) string {
 		}
 	}
 	return describePanes(ps)
+}
+
+// Where lsof is not installed, a process that listens still shows the
+// ports it listens on, read from what Linux records: every listening
+// socket, on either address family, and none that merely connects.
+func TestListeningWithoutLsof(t *testing.T) {
+	if runtime.GOOS != "linux" {
+		t.Skip("what Linux records")
+	}
+	t.Setenv("PATH", t.TempDir())
+	v4, err := net.Listen("tcp4", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer v4.Close()
+	want := []string{strconv.Itoa(v4.Addr().(*net.TCPAddr).Port)}
+	if v6, err := net.Listen("tcp6", "[::1]:0"); err == nil {
+		defer v6.Close()
+		want = append(want, strconv.Itoa(v6.Addr().(*net.TCPAddr).Port))
+	}
+	client, err := net.Dial("tcp4", v4.Addr().String())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer client.Close()
+	dialled := strconv.Itoa(client.LocalAddr().(*net.TCPAddr).Port)
+
+	got := listening()[os.Getpid()]
+	for _, port := range want {
+		if !slices.Contains(got, port) {
+			t.Errorf("this process listens on :%s, listening() has %v for it", port, got)
+		}
+	}
+	if slices.Contains(got, dialled) {
+		t.Errorf("a connection out from :%s is not a listener, listening() has %v", dialled, got)
+	}
 }

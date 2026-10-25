@@ -103,7 +103,7 @@ func (m model) takeTheme(r rethemed) model {
 		return m
 	}
 	wear(r.g)
-	m.g, m.bar = r.g, ""
+	m.g, m.bar, m.banded = r.g, "", ""
 	if m.own != "" {
 		_ = m.srv.Paint(m.own, r.g.Surface)
 	}

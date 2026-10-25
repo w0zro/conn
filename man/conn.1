@@ -144,7 +144,7 @@ or anything with a slash in it, names a directory, and
 .B enter
 opens it as a project whether or not it was found: the repository it is
 in where it is in one, the directory itself otherwise.
-One that is not a directory is said on the foot,
+One that is not a directory is said on the band,
 .IR "path " "is not a directory" .
 .SS A project
 The project's name at the head, its path after it, and its rows: what
@@ -239,7 +239,7 @@ directory it was had in;
 .B esc
 puts the list away.
 .SS The line
-\fB!\fR in a project: a command typed on the foot of the panel,
+\fB!\fR in a project: a command typed on the band,
 .BR "run in \fIproject\fB: " .
 .B enter
 runs it where the cursor stands, out of sight, as a run of its own:
@@ -329,7 +329,7 @@ The rows are a ring: past the last is the first.
 .TP
 .B enter
 Open the project under the cursor; with none shown and a path typed,
-the directory the path names, or a word on the foot where it names
+the directory the path names, or a word on the band where it names
 none.
 .TP
 .B tab
@@ -421,7 +421,7 @@ operator waits in
 .BR vim (1):
 the bar says what it waits for, and
 .B esc
-or any key that is not an object lets it go, the foot saying what it
+or any key that is not an object lets it go, the band saying what it
 waited for.
 The verb again is the row under the cursor, as
 .B dd
@@ -699,10 +699,10 @@ on the open project's own line goes up to its first row.
 A folder of repositories has a line, as any project, only for work in
 the folder itself, counting that alone, its repositories having lines
 of their own; a repository of the open folder has none.
-.SS The foot
-Under the rows, a line of
+.SS What conn says
+On the band, beside the wordmark, a line of
 .BR conn 's
-own until the next key: what the last key did or could not do, in its
+own until the next key, while the keys are on the panel: what the last key did or could not do, in its
 words, as
 .BR "web is up" ,
 .BR "web ended: send\-keys C\-c" ,
@@ -938,7 +938,12 @@ Two rows across the foot of the window, drawn by tmux from what
 .B conn
 tells it.
 .SS The band
-At the left, the wordmark.
+At the left, the wordmark, and beside it, while the keys are on the
+panel, what
+.B conn
+says, and the line
+.B !
+types.
 At the right, in the accent, how many conversations wait on you,
 .BR "2 waiting" ,
 and nothing while none does.

@@ -171,13 +171,10 @@ func TestAConversationFromAnotherTerminalComesIn(t *testing.T) {
 
 	// The foot is what stands under the panel; the bar is the key bar
 	// across the window's foot, as tmux has it.
-	foot := func(m model) string {
-		lines := strings.Split(m.View().Content, "\n")
-		lines = lines[max(len(lines)-4, 0):]
-		for i := range lines {
-			lines[i] = plainText(lines[i])
-		}
-		return strings.Join(strings.Fields(strings.Join(lines, " ")), " ")
+	// What conn says stands on the band, written there from the draw.
+	says := func(m model) string {
+		_, f := m.draw()
+		return f.say
 	}
 	styles := regexp.MustCompile(`#\[[^\]]*\]`)
 	bar := func() string {
@@ -229,8 +226,8 @@ func TestAConversationFromAnotherTerminalComesIn(t *testing.T) {
 	m = press(m, tea.Key{Code: tea.KeyEnter})
 	frame("working-120x36.ans", m)
 	const working = "working; it can come in when its turn ends"
-	if got := foot(m); !strings.Contains(got, working) {
-		t.Errorf("enter on a conversation still at work in another terminal, the foot says %q, want %q", got, working)
+	if got := says(m); !strings.Contains(got, working) {
+		t.Errorf("enter on a conversation still at work in another terminal, the band says %q, want %q", got, working)
 	}
 	_ = typed(m, 'y') // what it does is read off the machine below
 	time.Sleep(500 * time.Millisecond)
@@ -251,8 +248,8 @@ func TestAConversationFromAnotherTerminalComesIn(t *testing.T) {
 	m = press(m, tea.Key{Code: tea.KeyEnter})
 	frame("ask-120x36.ans", m)
 	const ask = "bring it in? it ends in its terminal"
-	if got := foot(m); !strings.Contains(got, ask) {
-		t.Fatalf("enter on a conversation at rest in another terminal, the foot says %q, want %q", got, ask)
+	if got := says(m); !strings.Contains(got, ask) {
+		t.Fatalf("enter on a conversation at rest in another terminal, the band says %q, want %q", got, ask)
 	}
 	for _, want := range []string{"y bring it in", "esc leave it"} {
 		if got := bar(); !strings.Contains(got, want) {
@@ -266,7 +263,7 @@ func TestAConversationFromAnotherTerminalComesIn(t *testing.T) {
 
 	// esc leaves it where it is.
 	m = press(m, tea.Key{Code: tea.KeyEscape})
-	if got := foot(m); strings.Contains(got, ask) {
+	if got := says(m); strings.Contains(got, ask) {
 		t.Errorf("after esc the foot still asks: %q", got)
 	}
 	time.Sleep(300 * time.Millisecond)
@@ -277,7 +274,7 @@ func TestAConversationFromAnotherTerminalComesIn(t *testing.T) {
 	// A yes ends it there and shows it in conn's window, the keys in it.
 	m = panel()
 	m = press(m, tea.Key{Code: tea.KeyEnter})
-	if got := foot(m); !strings.Contains(got, ask) {
+	if got := says(m); !strings.Contains(got, ask) {
 		t.Fatalf("enter again, the foot says %q, want %q", got, ask)
 	}
 	m = typed(m, 'y')

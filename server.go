@@ -192,17 +192,21 @@ set -g window-status-separator ""
 	fmt.Fprintf(&b, "set -g status-left \"#[fg=%s bold] conn #[default]\"\n", theme.Hex(g.Ink))
 	fmt.Fprintf(&b, "set -g status-right \"#{?#{%s},#[fg=%s bold]#{%s} waiting #[default],}#{?#{%s},#[fg=%s bold]#{%s} finished #[default],}#{?#{%s},#[fg=%s bold]#{%s} failed #[default],}\"\n", waitingMark, g.Accent, waitingMark, finishedMark, theme.Hex(g.Ink), finishedMark, failedMark, g.Scheme[1], failedMark)
 	fmt.Fprintf(&b, "set -g set-titles on\nset -g set-titles-string \"conn#{?#{%s}, · #{%s} waiting,}#{?#{%s}, · #{%s} finished,}#{?#{%s}, · #{%s} failed,}\"\n", waitingMark, waitingMark, finishedMark, finishedMark, failedMark, failedMark)
-	b.WriteString("set -g status-format[0] \"#[align=left]#{T:status-left}#[align=right]#{T:status-right}\"\n")
+	// What conn says stands on the band beside the wordmark while the
+	// keys are on the panel, where it was said.
 	onPanel := "#{==:#{pane_id},#{" + panelIDMark + "}}"
+	fmt.Fprintf(&b, "set -g status-format[0] \"#[align=left]#{T:status-left}#{?%s,#{%s},}#[align=right]#{T:status-right}\"\n", onPanel, sayMark)
 	fmt.Fprintf(&b, "set -g status-format[1] \"#[fill=%s bg=%s]#{?pane_in_mode,%s,#{?%s,#[fill=%s bg=%s]#{%s},%s}}\"\n", g.Surface, g.Surface, keyBar(copyHints, g), onPanel, g.Block, g.Block, barMark, keyBar(awayHints, g))
 	return b.String()
 }
 
-// The marks the key bar is written by: the panel's pane, so the bar
-// knows when the keys are on it, and the keys it says there.
+// The marks the status line is written by: the panel's pane, so the
+// bar knows when the keys are on it, the keys it says there, and what
+// conn says on the band.
 const (
 	panelIDMark = "@conn_panel_id"
 	barMark     = "@conn_bar"
+	sayMark     = "@conn_say"
 )
 
 // What the bar says while a pane is in copy mode: tmux's own keys in

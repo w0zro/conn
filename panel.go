@@ -57,6 +57,7 @@ type model struct {
 	known    *known
 	g        theme.Ground // the ground the server is on
 	bar      string       // the keys as last written on the bar
+	banded   string       // what conn says, as last written on the band
 	// The spinner: whether its tick is running, and the frame it is on.
 	spinning bool
 	frame    int
@@ -1076,16 +1077,26 @@ func (m model) telling(cmd tea.Cmd) (tea.Model, tea.Cmd) {
 	if m.width > panelWidth {
 		hints = fitHints(hints, m.width)
 	}
-	bar := connBar(hints, m.g)
-	if bar == m.bar {
+	bar, said := connBar(hints, m.g), band(f.say, m.g)
+	if bar == m.bar && said == m.banded {
 		return m, cmd
 	}
-	m.bar = bar
+	m.bar, m.banded = bar, said
 	srv := m.srv
 	return m, tea.Batch(cmd, func() tea.Msg {
-		_, _ = srv.Do(tmux.SetGlobal(barMark, bar), tmux.RefreshStatus())
+		_, _ = srv.Do(tmux.SetGlobal(barMark, bar), tmux.SetGlobal(sayMark, said), tmux.RefreshStatus())
 		return nil
 	})
+}
+
+// band is what conn says, as the band shows it beside the wordmark, in
+// the ink: the band has the window's width, and nothing else on its
+// left.
+func band(say string, g theme.Ground) string {
+	if say == "" {
+		return ""
+	}
+	return tmux.Styled(tmux.Style{FG: theme.Hex(g.Ink), BG: g.Border}, " "+strings.Join(strings.Fields(say), " ")+" ")
 }
 
 // fitHints is as many of the hints as the bar has room for in width
@@ -2740,13 +2751,13 @@ func (m model) View() tea.View {
 	return v
 }
 
-// inner is the panel in the rows the foot leaves it, and the foot.
+// inner is the panel in the rows the foot leaves it, and the foot: a
+// row of air, the keys being on the key bar across the window's foot
+// and what conn says on the band above it.
 func (m model) inner() (model, []string) {
-	_, f := m.draw()
-	feet := m.feet(f)
 	inner := m
-	inner.height = max(m.height-len(feet)+1, 3)
-	return inner, feet
+	inner.height = max(m.height, 3)
+	return inner, []string{""}
 }
 
 // draw is the screen's lines and its foot.
@@ -2780,9 +2791,9 @@ func (m model) draw() ([]string, foot) {
 	return lines, f
 }
 
-// feet is the foot as lines the panel's width: a saying of conn's own,
-// in the ink, broken between words, under a row of air; and nothing
-// otherwise, the keys being on the key bar across the window's foot.
+// feet is the foot of a question in the workspace as lines its width:
+// a saying of conn's own, in the ink, broken between words, under a row
+// of air.
 func (m model) feet(f foot) []string {
 	if f.say == "" {
 		return []string{""}

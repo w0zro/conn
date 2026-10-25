@@ -2773,7 +2773,18 @@ func TestKeyBar(t *testing.T) {
 	if lit := connBar([]keyHint{{"x", "stop"}}, theme.Dark); !strings.Contains(lit, "bg="+theme.Dark.Block) || strings.Contains(lit, theme.Dark.Surface) {
 		t.Errorf("connBar = %q", lit)
 	}
+	// What conn says stands on the band beside the wordmark, in the ink,
+	// while the keys are on the panel.
+	if got := band("no  process #1", theme.Dark); !strings.Contains(got, " no process ##1 ") || !strings.Contains(got, "fg="+theme.Hex(theme.Dark.Ink)) {
+		t.Errorf("band = %q", got)
+	}
+	if band("", theme.Dark) != "" {
+		t.Error("nothing said is something on the band")
+	}
 	c := conf(theme.Dark)
+	if !strings.Contains(c, "#{T:status-left}#{?#{==:#{pane_id},#{"+panelIDMark+"}},#{"+sayMark+"},}") {
+		t.Errorf("the band does not carry what conn says:\n%s", c)
+	}
 	for _, want := range []string{"set -g status 2\n", "status-format[1]", "#[fill=" + theme.Dark.Block + " bg=" + theme.Dark.Block + "]#{" + barMark + "}", "#{" + panelIDMark + "}"} {
 		if !strings.Contains(c, want) {
 			t.Errorf("conf lacks %s", want)
@@ -3677,12 +3688,12 @@ func TestClick(t *testing.T) {
 		t.Errorf("a click on the open project's line: cursor %d, opening %v", got.cursor, got.opening)
 	}
 	m.cursor = 0
-	// A note in the foot lifts the strip; the click is measured as
-	// drawn, and the note is let go of.
+	// A note stands on the band and leaves the strip where it is; a
+	// click lets go of it.
 	noted := m
 	noted.note = "nothing waits"
-	if lineOf(noted, "other") >= lineOf(m, "other") {
-		t.Fatal("the note does not lift the strip")
+	if lineOf(noted, "other") != lineOf(m, "other") {
+		t.Fatal("the note moves the strip")
 	}
 	if got := click(noted, lineOf(noted, "other")); got.opening == nil || got.opening.Root != "/q" || got.note != "" {
 		t.Errorf("a click with a note up: opening %v, note %q", got.opening, got.note)
@@ -6049,7 +6060,10 @@ func TestAHandedRunSaysWhoHasIt(t *testing.T) {
 		}
 		return raw, lines
 	}
-	said := func(m model) string { return strings.Join(strings.Fields(plainText(m.View().Content)), " ") }
+	said := func(m model) string {
+		_, f := m.draw()
+		return strings.Join(strings.Fields(plainText(m.View().Content)+" "+f.say), " ")
+	}
 	indent := func(s string) int { return ansi.StringWidth(s) - ansi.StringWidth(strings.TrimLeft(s, " ")) }
 	sgr := regexp.MustCompile("\x1b\\[[0-9;]*m")
 	lastSGR := func(s string) string {

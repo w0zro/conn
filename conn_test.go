@@ -2234,7 +2234,8 @@ func TestHandingLeavesTheAgentToIt(t *testing.T) {
 	}
 	m = read(m)
 	if len(m.rows) != 1 || m.rows[0].pane == nil || m.rows[0].pane.ID != held {
-		t.Fatalf("the read found %d rows, want the held process", len(m.rows))
+		ps, err := panes(srv)
+		t.Fatalf("the read found %d rows, want the held process %s; the server has %s (%v)", len(m.rows), held, describePanes(ps), err)
 	}
 	press := func(m model, s string) (model, tea.Cmd) {
 		var cmd tea.Cmd
@@ -2267,7 +2268,8 @@ func TestHandingLeavesTheAgentToIt(t *testing.T) {
 		}
 	}
 	if agent == nil {
-		t.Fatalf("no row for the agent among %d", len(m.rows))
+		ps, err := panes(srv)
+		t.Fatalf("no row for the agent among %d; the server has %s (%v)", len(m.rows), describePanes(ps), err)
 	}
 	// The agent reads its brief and lets the file go.
 	file := promptPath(srv.Socket, agent.Session)
@@ -6432,7 +6434,11 @@ func TestTabGoesToWhatFailed(t *testing.T) {
 		}
 		return m
 	}
-	said := func(m model) string { return strings.Join(strings.Fields(plainText(m.View().Content)), " ") }
+	// What conn says stands on the band, written there from the draw.
+	said := func(m model) string {
+		_, f := m.draw()
+		return strings.Join(strings.Fields(plainText(m.View().Content)+" "+f.say), " ")
+	}
 	cursorOn := func(m model) string {
 		if r, ok := m.under(); ok && r.pane != nil {
 			return r.pane.ID
@@ -6553,4 +6559,14 @@ func TestTabGoesToWhatFailed(t *testing.T) {
 		t.Errorf("with nothing waiting, tab moved from %s to %s", before, after)
 	}
 	frame("nothing-waits.ans", in)
+}
+
+// describePanes is the panes as a failure says them: each with what
+// runs in it, where, and whether it has ended.
+func describePanes(ps []pane) string {
+	var out []string
+	for _, p := range ps {
+		out = append(out, fmt.Sprintf("%s{dead %v, command %q, dir %q, session %q}", p.ID, p.Dead, p.Command, p.Dir, p.Session))
+	}
+	return "[" + strings.Join(out, " ") + "]"
 }

@@ -2235,7 +2235,7 @@ func TestHandingLeavesTheAgentToIt(t *testing.T) {
 	m = read(m)
 	if len(m.rows) != 1 || m.rows[0].pane == nil || m.rows[0].pane.ID != held {
 		ps, err := panes(srv)
-		t.Fatalf("the read found %d rows, want the held process %s; the server has %s (%v)", len(m.rows), held, describePanes(ps), err)
+		t.Fatalf("the read found %d rows, want the held process %s; the read saw %s; the server has %s (%v)", len(m.rows), held, describeProcs(m.procs), describePanes(ps), err)
 	}
 	press := func(m model, s string) (model, tea.Cmd) {
 		var cmd tea.Cmd
@@ -2269,7 +2269,7 @@ func TestHandingLeavesTheAgentToIt(t *testing.T) {
 	}
 	if agent == nil {
 		ps, err := panes(srv)
-		t.Fatalf("no row for the agent among %d; the server has %s (%v)", len(m.rows), describePanes(ps), err)
+		t.Fatalf("no row for the agent among %d; the read saw %s; the server has %s (%v)", len(m.rows), describeProcs(m.procs), describePanes(ps), err)
 	}
 	// The agent reads its brief and lets the file go.
 	file := promptPath(srv.Socket, agent.Session)
@@ -6569,4 +6569,15 @@ func describePanes(ps []pane) string {
 		out = append(out, fmt.Sprintf("%s{dead %v, command %q, dir %q, session %q}", p.ID, p.Dead, p.Command, p.Dir, p.Session))
 	}
 	return "[" + strings.Join(out, " ") + "]"
+}
+
+// describeProcs is what a read saw of the panes, as a failure says it.
+func describeProcs(procs []proc) string {
+	var ps []pane
+	for _, p := range procs {
+		if p.pane != nil {
+			ps = append(ps, *p.pane)
+		}
+	}
+	return describePanes(ps)
 }

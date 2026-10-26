@@ -83,23 +83,29 @@ func readConfig(home string) (config, error) {
 	if err := json.Unmarshal(b, &c); err != nil {
 		return c, fmt.Errorf("%s: %w", path, err)
 	}
-	if c.Ground != "" && c.Ground != "dark" && c.Ground != "light" {
-		return c, fmt.Errorf("%s: the ground is dark or light, not %q", path, c.Ground)
+	if c.Ground != "" && c.Ground != "dark" && c.Ground != "light" && c.Ground != "system" {
+		return c, fmt.Errorf("%s: the ground is dark, light or system, not %q", path, c.Ground)
 	}
 	return c, nil
 }
 
 // A config is what config.json says about a server coming up: the
 // theme it wears, and the ground, dark or light, where the operator
-// wants the same one on every terminal rather than the terminal's own.
+// wants the same one on every terminal rather than the terminal's own,
+// or system, the system's own, followed as it changes.
 type config struct {
 	Theme  string `json:"theme"`
 	Ground string `json:"ground"`
 }
 
+// systemDark asks the system its appearance; a test answers for it.
+var systemDark = theme.SystemDark
+
 // freshMode is the mode a server comes up on: the theme a flag names,
 // or config.json, or conn's; and the ground a flag names, or
-// config.json, or the terminal's own, asked only then.
+// config.json, or the terminal's own, asked only then. A ground of
+// system is the system's, and the terminal's where the system does not
+// say.
 func freshMode(home string, want theme.Want, detect func() bool) (theme.Mode, error) {
 	c, err := readConfig(home)
 	if err != nil {
@@ -109,6 +115,13 @@ func freshMode(home string, want theme.Want, detect func() bool) (theme.Mode, er
 	switch {
 	case want.Dark != nil:
 		m.Dark = *want.Dark
+	case c.Ground == "system":
+		m.System = true
+		if dark, known := systemDark(); known {
+			m.Dark = dark
+		} else {
+			m.Dark = detect()
+		}
 	case c.Ground != "":
 		m.Dark = c.Ground == "dark"
 	default:
@@ -436,7 +449,7 @@ func askGround(srv *tmux.Server, home string, want theme.Want) (theme.Ground, er
 	m, ok := theme.ReadMode(srv.Socket)
 	if ok && srv.HasSession(sessionName) {
 		if want.Dark != nil {
-			m.Dark = *want.Dark
+			m.Dark, m.System = *want.Dark, false
 		}
 		m.Theme = cmp.Or(want.Theme, m.Theme)
 	} else {
@@ -453,8 +466,9 @@ func askGround(srv *tmux.Server, home string, want theme.Want) (theme.Ground, er
 // already up was just put on another. A server's mode is what it came
 // up on, held until it goes down: freshMode's, the first time. A flag
 // says it whenever it is given, so a server already up is put on what
-// it names where it stands; --theme reads its sheet again even where
-// the server wears it already, so a sheet being worked on is seen.
+// it names where it stands, and one that followed the system stops;
+// --theme reads its sheet again even where the server wears it
+// already, so a sheet being worked on is seen.
 func chooseGround(home, socket string, up bool, want theme.Want, detect func() bool) (g theme.Ground, again bool, err error) {
 	m, ok := theme.ReadMode(socket)
 	fresh := !ok || !up
@@ -466,8 +480,8 @@ func chooseGround(home, socket string, up bool, want theme.Want, detect func() b
 			return theme.Ground{}, false, err
 		}
 	} else {
-		if want.Dark != nil && *want.Dark != m.Dark {
-			m.Dark, again = *want.Dark, true
+		if want.Dark != nil && (*want.Dark != m.Dark || m.System) {
+			m.Dark, m.System, again = *want.Dark, false, true
 		}
 		if want.Theme != "" {
 			m.Theme, again = want.Theme, true

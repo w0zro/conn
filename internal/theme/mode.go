@@ -1,9 +1,12 @@
 package theme
 
 import (
+	"errors"
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strings"
 
 	"charm.land/lipgloss/v2"
@@ -24,16 +27,19 @@ func ModePath(socket string) string {
 	return filepath.Join(filepath.Dir(socket), "mode")
 }
 
-// A Mode is what a server came up on: a ground, and the theme it wears.
+// A Mode is what a server came up on: a ground, the theme it wears,
+// and whether the ground is the system's, followed as it changes.
 type Mode struct {
-	Dark  bool
-	Theme string
+	Dark   bool
+	Theme  string
+	System bool
 }
 
 // ReadMode is the mode written at ModePath, and whether one was: a
 // server that has not chosen yet has nothing there. The file is one
-// line, the ground and then the theme: "light conn". A file of the
-// ground alone, from a build that named no theme, wears conn's.
+// line, the ground and then the theme: "light conn", and "system"
+// after them where the ground is the system's. A file of the ground
+// alone, from a build that named no theme, wears conn's.
 func ReadMode(socket string) (Mode, bool) {
 	b, err := os.ReadFile(ModePath(socket))
 	if err != nil {
@@ -44,6 +50,7 @@ func ReadMode(socket string) (Mode, bool) {
 	if len(words) > 1 {
 		m.Theme = words[1]
 	}
+	m.System = len(words) > 2 && words[2] == "system"
 	return m, true
 }
 
@@ -57,7 +64,38 @@ func WriteMode(socket string, m Mode) error {
 	if !m.Dark {
 		ground = "light"
 	}
-	return os.WriteFile(ModePath(socket), []byte(ground+" "+m.Theme+"\n"), 0o600)
+	line := ground + " " + m.Theme
+	if m.System {
+		line += " system"
+	}
+	return os.WriteFile(ModePath(socket), []byte(line+"\n"), 0o600)
+}
+
+// SystemDark asks the system its appearance, and says whether it
+// answered: dark or light where it did, and nothing known on a system
+// conn cannot ask. macOS keeps the style in its defaults, Dark when it
+// is and nothing at all when it is light; GNOME keeps its scheme in
+// gsettings. Each is asked the way its own tools ask.
+func SystemDark() (dark, known bool) {
+	switch runtime.GOOS {
+	case "darwin":
+		out, err := exec.Command("defaults", "read", "-g", "AppleInterfaceStyle").Output()
+		if err == nil {
+			return strings.TrimSpace(string(out)) == "Dark", true
+		}
+		var exit *exec.ExitError
+		if errors.As(err, &exit) {
+			return false, true // not set: light
+		}
+		return false, false
+	case "linux":
+		out, err := exec.Command("gsettings", "get", "org.gnome.desktop.interface", "color-scheme").Output()
+		if err != nil {
+			return false, false
+		}
+		return strings.Contains(string(out), "prefer-dark"), true
+	}
+	return false, false
 }
 
 // ForgetMode takes the choice back, for a server that has gone down.

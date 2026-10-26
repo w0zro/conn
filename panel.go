@@ -148,6 +148,8 @@ type model struct {
 	// ,'s settings: whether they stand, and the cursor in them.
 	settings bool
 	setAt    int
+	// Following the system: when it was last asked its appearance.
+	askedSystem time.Time
 	// The boot console, while the panel is on it; nil once it is put
 	// away, or where the panel came up over a server already up.
 	boot *booting
@@ -1298,6 +1300,10 @@ func (m model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.width, m.height = w, h
 		}
 	case ticked:
+		if time.Since(m.askedSystem) >= askSystemEvery {
+			m.askedSystem = time.Now()
+			return m, tea.Batch(tick(), m.followSystem())
+		}
 		return m, tick()
 	case acted:
 		m.note = string(msg)

@@ -2700,6 +2700,35 @@ func TestChooseGround(t *testing.T) {
 		t.Errorf("a ground of dusk: %v", err)
 	}
 
+	// config.json's system is the system's ground, asked of the system
+	// and not the terminal, and followed; where the system does not
+	// say, the terminal's. A flag over it puts the server on its ground
+	// and stops it following.
+	theme.ForgetMode(socket)
+	write(t, filepath.Join(home, ".config", "conn", "config.json"), `{"ground": "system"}`)
+	systemDark = func() (bool, bool) { return true, true }
+	t.Cleanup(func() { systemDark = theme.SystemDark })
+	if g, _ := choose(false, theme.Want{}); !g.Dark() || asked != 1 {
+		t.Errorf("config.json's system on a dark system: dark %v, asked %d", g.Dark(), asked)
+	}
+	if m, _ := theme.ReadMode(socket); m != (theme.Mode{Dark: true, Theme: "conn", System: true}) {
+		t.Errorf("a server on the system's ground was written down as %+v", m)
+	}
+	if g, again := choose(true, theme.Want{Dark: &dark}); !g.Dark() || !again {
+		t.Errorf("--dark on a server following a dark system: dark %v, again %v", g.Dark(), again)
+	}
+	if m, _ := theme.ReadMode(socket); m.System {
+		t.Errorf("--dark left the server following the system: %+v", m)
+	}
+	theme.ForgetMode(socket)
+	systemDark = func() (bool, bool) { return false, false }
+	if g, _ := choose(false, theme.Want{}); g.Dark() || asked != 2 {
+		t.Errorf("config.json's system where the system does not say: dark %v, asked %d", g.Dark(), asked)
+	}
+	if m, _ := theme.ReadMode(socket); !m.System {
+		t.Errorf("a server on the terminal's ground for the system's does not follow it: %+v", m)
+	}
+
 	// A sheet gone while the server wears it is conn's own.
 	_ = theme.WriteMode(socket, theme.Mode{Theme: "gone"})
 	if g, _, err := chooseGround(home, socket, true, theme.Want{}, detect); err != nil || g != theme.Light {
@@ -3553,7 +3582,7 @@ func TestSettings(t *testing.T) {
 	}
 	lines, f := m.draw()
 	s := strings.Join(lines, "\n")
-	for _, want := range []string{"conn  settings", "theme", "datum", "skelly", "mode", "light"} {
+	for _, want := range []string{"conn  settings", "theme", "datum", "skelly", "mode", "light", "system"} {
 		if !strings.Contains(s, want) {
 			t.Errorf("the settings do not say %q:\n%s", want, s)
 		}
@@ -3590,12 +3619,66 @@ func TestSettings(t *testing.T) {
 		t.Errorf("config.json after skelly: %s", b)
 	}
 
-	// light is the last row.
+	// light is the row before the last.
 	m, _ = press(m, "G")
+	m, _ = press(m, "k")
 	m, cmd = press(m, "enter")
 	next, _ = m.Update(cmd())
 	if m = next.(model); m.g != skelly.Light {
 		t.Errorf("light did not put the panel on skelly's light: %s", m.g.Accent)
+	}
+
+	// system is the last: the server goes on the system's ground, and
+	// the row the system has it on says now. Kept as system.
+	systemDark = func() (bool, bool) { return true, true }
+	t.Cleanup(func() { systemDark = theme.SystemDark })
+	m, _ = press(m, "G")
+	m, cmd = press(m, "enter")
+	next, _ = m.Update(cmd())
+	if m = next.(model); m.g != skelly.Dark {
+		t.Errorf("system on a dark system did not put the panel on skelly's dark: %s", m.g.Accent)
+	}
+	if md, _ := theme.ReadMode(srv.Socket); md != (theme.Mode{Dark: true, Theme: "skelly", System: true}) {
+		t.Errorf("the server's mode on system is %+v", md)
+	}
+	lines, _ = m.draw()
+	s = plainText(strings.Join(lines, "\n"))
+	if !regexp.MustCompile(`system\s+on`).MatchString(s) || !regexp.MustCompile(`dark\s+now`).MatchString(s) || regexp.MustCompile(`dark\s+on`).MatchString(s) {
+		t.Errorf("the settings on a dark system:\n%s", s)
+	}
+	b, _ = os.ReadFile(filepath.Join(home, ".config", "conn", "config.json"))
+	if err := json.Unmarshal(b, &c); err != nil || c["ground"] != "system" {
+		t.Errorf("config.json after system: %s", b)
+	}
+
+	// The system goes over to light: a tick asks it, and the server
+	// follows. Light again on a light system is nothing to do.
+	systemDark = func() (bool, bool) { return false, true }
+	next, cmd = m.Update(ticked{})
+	m = next.(model)
+	if cmd == nil {
+		t.Fatal("the tick did nothing")
+	}
+	// The tick's batch: the next tick, which is not waited for, and
+	// the system asked.
+	batch, ok := cmd().(tea.BatchMsg)
+	if !ok {
+		t.Fatal("the tick on a server following the system is not a batch")
+	}
+	for _, c := range batch {
+		if msg, ok := c().(rethemed); ok {
+			next, _ = m.Update(msg)
+			m = next.(model)
+		}
+	}
+	if m.g != skelly.Light {
+		t.Errorf("the panel did not follow the system to light: %s, %q", m.g.Accent, m.note)
+	}
+	if md, _ := theme.ReadMode(srv.Socket); md != (theme.Mode{Dark: false, Theme: "skelly", System: true}) {
+		t.Errorf("the server's mode after the system went light is %+v", md)
+	}
+	if msg := m.followSystem()(); msg != nil {
+		t.Errorf("following a light system on light did something: %v", msg)
 	}
 	if m, _ = press(m, "esc"); m.settings {
 		t.Error("esc did not put the settings away")

@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 
 	tea "charm.land/bubbletea/v2"
 	"github.com/w0zro/conn/internal/theme"
@@ -14,8 +15,11 @@ import (
 )
 
 // The settings: , on either screen puts them over it. A row a theme
-// there is, then a row a ground; enter puts the server on the row's,
-// where it stands, and keeps it in config.json for the next server.
+// there is, then a row a ground, dark, light and the system's; enter
+// puts the server on the row's, where it stands, and keeps it in
+// config.json for the next server. On the system's, the panel asks the
+// system its appearance as it runs, and puts the server on the other
+// ground when the system has gone over to it.
 
 // A setting is a row of the settings: a theme by name, or a ground.
 type setting struct {
@@ -29,7 +33,7 @@ func (m model) settingRows() []setting {
 	for _, n := range theme.Names(themesDir(m.home)) {
 		out = append(out, setting{"theme", n})
 	}
-	return append(out, setting{"mode", "dark"}, setting{"mode", "light"})
+	return append(out, setting{"mode", "dark"}, setting{"mode", "light"}, setting{"mode", "system"})
 }
 
 // mode is what the server is on, by its mode file.
@@ -46,10 +50,19 @@ func (m model) mode() theme.Mode {
 
 // on says whether a setting is what the server is on.
 func (s setting) on(md theme.Mode) bool {
-	if s.kind == "theme" {
+	switch {
+	case s.kind == "theme":
 		return s.name == md.Theme
+	case s.name == "system":
+		return md.System
 	}
-	return (s.name == "dark") == md.Dark
+	return !md.System && (s.name == "dark") == md.Dark
+}
+
+// now says whether a setting is the ground the system has the server
+// on: what following it came to.
+func (s setting) now(md theme.Mode) bool {
+	return s.kind == "mode" && md.System && s.name != "system" && (s.name == "dark") == md.Dark
 }
 
 // settingsKey is a key while the settings stand: the arrows move, and
@@ -74,10 +87,16 @@ func (m model) settingsKey(k tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 			return m, nil
 		}
 		md, s := m.mode(), rows[m.setAt]
-		if s.kind == "theme" {
+		switch {
+		case s.kind == "theme":
 			md.Theme = s.name
-		} else {
-			md.Dark = s.name == "dark"
+		case s.name == "system":
+			md.System = true
+			if dark, known := systemDark(); known {
+				md.Dark = dark
+			}
+		default:
+			md.Dark, md.System = s.name == "dark", false
 		}
 		srv, home := m.srv, m.home
 		return m, func() tea.Msg {
@@ -128,12 +147,43 @@ func (m model) drawSettings() ([]string, foot) {
 			last = s.kind
 		}
 		name, mark := gray, piece{}
-		if s.on(md) {
+		switch {
+		case s.on(md):
 			name, mark = ink, piece{"on", accent}
+		case s.now(md):
+			mark = piece{"now", gray}
 		}
 		lines = append(lines, m.row([]piece{{s.name, name}}, mark, i == m.setAt))
 	}
 	return lines, foot{hints: settingsHints}
+}
+
+// askSystemEvery is how often the panel asks the system its
+// appearance while the server follows it.
+const askSystemEvery = 5 * time.Second
+
+// followSystem puts the server on the ground the system has gone over
+// to, where the server follows the system and the system says. The
+// server's mode is read where it is kept, so a conn that put the
+// server on a ground from outside is seen here too.
+func (m model) followSystem() tea.Cmd {
+	if m.srv == nil {
+		return nil
+	}
+	srv, home := m.srv, m.home
+	return func() tea.Msg {
+		md, ok := theme.ReadMode(srv.Socket)
+		if !ok || !md.System {
+			return nil
+		}
+		dark, known := systemDark()
+		if !known || dark == md.Dark {
+			return nil
+		}
+		md.Dark = dark
+		g, err := retheme(srv, home, md)
+		return rethemed{g, err}
+	}
 }
 
 // retheme puts the server on a mode where it stands: written down
@@ -183,7 +233,10 @@ func keepMode(home string, md theme.Mode) error {
 		}
 	}
 	ground := "light"
-	if md.Dark {
+	switch {
+	case md.System:
+		ground = "system"
+	case md.Dark:
 		ground = "dark"
 	}
 	c["theme"], _ = json.Marshal(md.Theme)

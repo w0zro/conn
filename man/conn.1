@@ -257,12 +257,17 @@ opens a shell there and puts the keys in it.
 .B ,
 on either screen: the themes
 .B conn
-has under one label and the two grounds under another, with
+has under one label and the grounds under another, dark, light and
+system, with
 .B on
 beside what the server is on.
 .B enter
 changes it at once, in every pane, and keeps it for the next
 server.
+On system the server is on the system's ground, dark or light as the
+system is, marked
+.BR now ,
+and goes over with it: the panel asks the system every few seconds.
 See
 .B THEMES
 below.
@@ -1205,6 +1210,7 @@ and
 .B ground
 from the configuration file, and with no ground there asks the terminal
 its background with OSC 11, calling it dark unless it answers light.
+Either flag on a server following the system stops it following.
 .B \-\-light
 with
 .B \-\-dark
@@ -1282,8 +1288,11 @@ Read for a server coming up; written by the settings, every other key
 kept.
 No
 .B ground
-is the terminal's own, asked when a server rises.
-A ground that is neither dark nor light is an error.
+is the terminal's own, asked when a server rises;
+.B system
+is the system's, followed as it changes, and the terminal's where the
+system cannot be asked.
+A ground that is none of dark, light and system is an error.
 .TP
 .I ~/.config/conn/themes/
 Theme sheets,
@@ -1302,7 +1311,10 @@ tells tmux, written on each start;
 .I mode
 the ground and theme the server came up on, one line,
 .BR "dark conn" ,
-forgotten when the server goes down;
+with
+.B system
+after them where the ground follows the system's, forgotten when the
+server goes down;
 .I started.jsonl
 what was started under a name through
 .BR conn ,
@@ -1349,6 +1361,10 @@ in the file,
 .BR \-\-light / \-\-dark ,
 or the settings; with none of those it is asked of the terminal when a
 server rises.
+A ground of
+.B system
+is the system's, macOS's appearance or GNOME's color scheme, and the
+server goes over with it while the panel runs.
 Picking either in the settings changes it at once, in every pane.
 .PP
 A sheet is a JSON object with a
@@ -1466,7 +1482,7 @@ Exit 2.
 .BI "conn: there is no theme " name "; there are " names ", in " dir
 Exit 1.
 .TP
-.BI "conn: " path ": the ground is dark or light, not " word
+.BI "conn: " path ": the ground is dark, light or system, not " word
 Exit 1.
 .TP
 .B An earlier conn's server is up. End it, and everything running in it? [y/N]

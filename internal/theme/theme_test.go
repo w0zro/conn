@@ -56,6 +56,16 @@ func TestMode(t *testing.T) {
 	if m, ok := ReadMode(socket); !ok || m != (Mode{Dark: true, Theme: "conn"}) {
 		t.Errorf("ReadMode of a one-word file = %+v, %v", m, ok)
 	}
+	// A server on the system's ground says so after the ground it is on.
+	if err := WriteMode(socket, Mode{Dark: true, Theme: "mine", System: true}); err != nil {
+		t.Fatal(err)
+	}
+	if b, _ := os.ReadFile(ModePath(socket)); string(b) != "dark mine system\n" {
+		t.Errorf("the mode file on the system's ground is %q", b)
+	}
+	if m, ok := ReadMode(socket); !ok || m != (Mode{Dark: true, Theme: "mine", System: true}) {
+		t.Errorf("ReadMode on the system's ground = %+v, %v", m, ok)
+	}
 	ForgetMode(socket)
 	if _, ok := ReadMode(socket); ok {
 		t.Error("a mode was read after it was forgotten")

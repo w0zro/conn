@@ -308,11 +308,13 @@ func TestAStackProcessNotRunningIsADownRow(t *testing.T) {
 		t.Errorf("css runs at %d, api is down at %d, worker at %d; want what runs first, the down rows after it", c, a, w)
 	}
 	wait("the cursor on css", func(_ []string, space string) bool { return !strings.Contains(space, "sleep 1001") })
+	// The row is found on the plain screen, and its dress on the
+	// captured one, the same line.
+	panel, _ = halves(screen(false))
 	raw = screen(true)
-	panel, _ = halves(raw)
 	frame("mixed-120x36.ans")
-	if i := runsAt(panel, "css"); i < 0 || dimmed(raw[i], "css") {
-		t.Errorf("the row css, which runs, is drawn dim: %q", raw[i])
+	if i := runsAt(panel, "css"); i < 0 || i >= len(raw) || dimmed(raw[i], "css") {
+		t.Errorf("the row css, which runs, is not drawn plain:\n%s", strings.Join(raw, "\n"))
 	}
 	keys("-")
 	wait("web saying 1 running · 2 down", onProjects("1 running · 2 down", "1 down"))

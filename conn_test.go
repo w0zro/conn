@@ -1920,13 +1920,7 @@ func TestWorkspace(t *testing.T) {
 	if p := inWorkspace(t, func() workspace { _, _ = ws.ensure(); return ws }()); !p.Hold {
 		t.Fatalf("the workspace was made without a hold: %+v", p)
 	}
-	id, err := startNamed(srv, "web", "sleep 1000", "/tmp", "/tmp", roleStack)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := ws.show(id, false); err != nil {
-		t.Fatal(err)
-	}
+	id := startShown(t, srv, ws, "/tmp")
 	if p := inWorkspace(t, ws); p.ID != id {
 		t.Errorf("the workspace shows %s, want %s", p.ID, id)
 	}
@@ -1972,13 +1966,7 @@ func TestEndInPlace(t *testing.T) {
 		t.Fatal(err)
 	}
 	dir := t.TempDir()
-	id, err := startNamed(srv, "web", "sleep 1000", dir, dir, roleStack)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := ws.show(id, false); err != nil {
-		t.Fatal(err)
-	}
+	id := startShown(t, srv, ws, dir)
 	time.Sleep(300 * time.Millisecond)
 	p := paneByID(srv, id)
 	if how, err := endProc(srv, ws.hold, proc{pane: p, Name: "web"}); err != nil || how != "send-keys C-c" {
@@ -5404,14 +5392,7 @@ func TestAHandedRunSaysWhoHasIt(t *testing.T) {
 	)
 	failing := func(name, why string) string {
 		ran := filepath.Join(scratch, "ran-"+name)
-		id, err := startNamed(srv, name, "if [ -e "+ran+" ]; then echo 'ok  web 0.01s'; exit 0; fi; touch "+ran+"; echo '"+why+"'; echo FAIL; echo 'exit status 1'; exit 1", web, web, roleCheck)
-		if err != nil {
-			t.Fatal(err)
-		}
-		if exit, err := waitExit(srv, id); err != nil || exit == "0" {
-			t.Fatalf("%s ended %q, %v, want it failed", name, exit, err)
-		}
-		return id
+		return startFailed(t, srv, name, "if [ -e "+ran+" ]; then echo 'ok  web 0.01s'; exit 0; fi; touch "+ran+"; echo '"+why+"'; echo FAIL; echo 'exit status 1'; exit 1", web)
 	}
 	failing("test", testWhy)
 	failing("lint", lintWhy)
@@ -5637,16 +5618,7 @@ func TestTabGoesToWhatFailed(t *testing.T) {
 		title  = "Rate-limit the login endpoint"
 		convID = "aaaaaaaa-0000-0000-0000-000000000001"
 	)
-	failing := func(name, command string) string {
-		id, err := startNamed(srv, name, command, web, web, roleCheck)
-		if err != nil {
-			t.Fatal(err)
-		}
-		if exit, err := waitExit(srv, id); err != nil || exit == "0" {
-			t.Fatalf("%s ended %q, %v, want it failed", name, exit, err)
-		}
-		return id
-	}
+	failing := func(name, command string) string { return startFailed(t, srv, name, command, web) }
 	testID := failing("test", "echo FAIL; exit 1")
 	lintID := failing("lint", "exit 3")
 	vetID := failing("vet", "echo '"+vetWhy+"'; echo FAIL; echo 'exit status 1'; exit 1")
@@ -5825,14 +5797,49 @@ func withoutLsof(t *testing.T) {
 	t.Setenv("PATH", bin)
 }
 
-// listenHere is a port this process listens on, held open until the
-// test ends.
-func listenHere(t *testing.T) string {
+// startFailed starts a check in dir that runs command and waits for it
+// to end failed, and gives its id.
+func startFailed(t *testing.T, srv *tmux.Server, name, command, dir string) string {
+	t.Helper()
+	id, err := startNamed(srv, name, command, dir, dir, roleCheck)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if exit, err := waitExit(srv, id); err != nil || exit == "0" {
+		t.Fatalf("%s ended %q, %v, want it failed", name, exit, err)
+	}
+	return id
+}
+
+// startShown starts a stack process named web in dir and shows it in
+// the workspace, and gives its id.
+func startShown(t *testing.T, srv *tmux.Server, ws workspace, dir string) string {
+	t.Helper()
+	id, err := startNamed(srv, "web", "sleep 1000", dir, dir, roleStack)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := ws.show(id, false); err != nil {
+		t.Fatal(err)
+	}
+	return id
+}
+
+// listenLoopback is a listener on a free port of the loopback address.
+func listenLoopback(t *testing.T) net.Listener {
 	t.Helper()
 	ln, err := net.Listen("tcp4", "127.0.0.1:0")
 	if err != nil {
 		t.Fatal(err)
 	}
+	return ln
+}
+
+// listenHere is a port this process listens on, held open until the
+// test ends.
+func listenHere(t *testing.T) string {
+	t.Helper()
+	ln := listenLoopback(t)
 	t.Cleanup(func() { _ = ln.Close() })
 	return strconv.Itoa(ln.Addr().(*net.TCPAddr).Port)
 }
@@ -5843,10 +5850,7 @@ func listenHere(t *testing.T) string {
 // socket and left unreceived.
 func listenUnowned(t *testing.T) string {
 	t.Helper()
-	ln, err := net.Listen("tcp4", "127.0.0.1:0")
-	if err != nil {
-		t.Fatal(err)
-	}
+	ln := listenLoopback(t)
 	port := strconv.Itoa(ln.Addr().(*net.TCPAddr).Port)
 	f, err := ln.(*net.TCPListener).File()
 	if err != nil {

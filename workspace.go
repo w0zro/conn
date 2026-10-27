@@ -6,9 +6,11 @@ import (
 	"path/filepath"
 	"strings"
 	"sync"
+	"time"
 
 	tea "charm.land/bubbletea/v2"
 	"github.com/charmbracelet/colorprofile"
+	"github.com/charmbracelet/x/ansi"
 	"github.com/w0zro/conn/internal/shell"
 	"github.com/w0zro/conn/internal/tmux"
 )
@@ -236,15 +238,63 @@ func runHold() error {
 	return err
 }
 
-type holdModel struct{ width, height int }
+// saysMark is the server's option holding what the hold says in place
+// of holdWord: the name of a process written down and not running, and
+// its command, as the panel's cursor stands on its row; blank for none.
+const saysMark = "@conn_says"
 
-func (h holdModel) Init() tea.Cmd { return nil }
+// holdModel is a hold: its size, and what it says, read from the server
+// as it changes under the cursor.
+type holdModel struct {
+	width, height int
+	says          string
+}
+
+// heardMark is the option a hold sets to what it has read to say, for
+// the panel to know it has.
+const heardMark = "@conn_heard"
+
+// A heard is what the server says the hold says now.
+type heard string
+
+// heardWait is how long the panel waits for a hold to read what it is
+// to say, so that the workspace says it as the row is drawn.
+const heardWait = 300 * time.Millisecond
+
+// hearKey is the key the panel types into a hold when what it is to say
+// has changed; the hold reads it again.
+const hearKey = "C-]"
+
+func hear() tea.Cmd {
+	return func() tea.Msg {
+		home, _ := os.UserHomeDir()
+		srv, err := findServer(home)
+		if err != nil {
+			return heard("")
+		}
+		says, _ := srv.Global(saysMark)
+		_, _ = srv.Do(tmux.SetGlobal(heardMark, says))
+		return heard(says)
+	}
+}
+
+// Init reads what to say, and once more a moment on: a key typed before
+// the hold is listening is lost.
+func (h holdModel) Init() tea.Cmd {
+	return tea.Batch(hear(), tea.Tick(200*time.Millisecond, func(time.Time) tea.Msg { return hear()() }))
+}
 
 func (h holdModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
+	case heard:
+		h.says = string(msg)
+		return h, nil
 	case tea.WindowSizeMsg:
 		h.width, h.height = msg.Width, msg.Height
 	case tea.KeyPressMsg:
+		if msg.String() == "ctrl+]" {
+			return h, hear()
+		}
 		return h, func() tea.Msg {
 			home, _ := os.UserHomeDir()
 			if srv, err := findServer(home); err == nil {
@@ -260,7 +310,13 @@ func (h holdModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 func (h holdModel) View() tea.View {
 	lines := make([]string, max(h.height, 1))
-	if h.height > 2 {
+	if name, command, ok := strings.Cut(h.says, " "); ok && h.height > 3 {
+		// A process written down and not running: its name and that it
+		// is down, and under them the command that starts it.
+		says := name + "  down"
+		lines[h.height/2-1] = strings.Repeat(" ", max((h.width-len(says))/2, 0)) + ink.Render(name) + gray.Render("  down")
+		lines[h.height/2] = strings.Repeat(" ", max((h.width-ansi.StringWidth(command))/2, 0)) + gray.Render(command)
+	} else if h.height > 2 {
 		lines[h.height/2] = strings.Repeat(" ", max((h.width-len(holdWord))/2, 0)) + faint.Render(holdWord)
 	}
 	v := tea.NewView(strings.Join(lines, "\n"))

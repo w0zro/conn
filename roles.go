@@ -116,6 +116,42 @@ func established(starts []started, in func(root string) bool, as role) []stacked
 	return out
 }
 
+// down is what a project has written down as its stack and does not
+// run: each name established as the stack in the project that no pane
+// of the project stands under, in the order they were first run. ran is
+// the names the panes stand under, by the root of each. A run that
+// ended is a row of its own, and is not down.
+func down(starts []started, ran map[string]map[string]bool, p project) []stacked {
+	var out []stacked
+	for _, s := range established(starts, p.belongs, roleStack) {
+		runs := false
+		for root, names := range ran {
+			runs = runs || p.belongs(root) && names[s.name]
+		}
+		if !runs {
+			out = append(out, s)
+		}
+	}
+	return out
+}
+
+// ranIn is the names the panes stand under, by the root of the project
+// each is in.
+func ranIn(ps []pane, rootOf func(dir string) string) map[string]map[string]bool {
+	ran := map[string]map[string]bool{}
+	for _, p := range ps {
+		if p.Name == "" || p.Hold || p.Panel || p.Dead {
+			continue
+		}
+		root := rootOf(p.Dir)
+		if ran[root] == nil {
+			ran[root] = map[string]bool{}
+		}
+		ran[root][p.Name] = true
+	}
+	return ran
+}
+
 // clientFor is what talks to a process, by the name it is kept under,
 // where one has been kept.
 func clientFor(starts []started, in func(root string) bool, name string) (stacked, bool) {

@@ -2,8 +2,6 @@ package main
 
 import (
 	"errors"
-	"os/exec"
-	"path/filepath"
 	"strings"
 	"testing"
 )
@@ -50,11 +48,7 @@ func TestVersionLine(t *testing.T) {
 // name that is not found is not found for that reason, rather than
 // because no such process runs.
 func TestNoServerSaysSo(t *testing.T) {
-	if _, err := exec.LookPath("tmux"); err != nil {
-		t.Skip("no tmux")
-	}
-	scratch := t.TempDir()
-	t.Setenv("CONN_SOCKET", filepath.Join(scratch, "s"))
+	_, scratch := tmuxScratch(t)
 	var out strings.Builder
 	if code := runLs(&out, scratch, scratch, nil); code != 0 || !strings.Contains(out.String(), "nothing running; conn's server is not up") || !strings.Contains(out.String(), "(no repository; everything under it)") {
 		t.Errorf("conn ls = %d:\n%s", code, out.String())

@@ -93,6 +93,8 @@ type model struct {
 	// last went to, so the next tab goes on to another.
 	waiting     []pane
 	lastWaiting string
+	// What the hold in the workspace was last told to say, as it is under the cursor.
+	told string
 	// What each of them is called, by pane, for the projects screen.
 	waitTitle map[string]string
 	waitAsk   map[string]string
@@ -161,6 +163,7 @@ type row struct {
 	conv      *conversation
 	pane      *pane
 	outside   *proc    // a server in the project that conn does not hold
+	down      *stacked // a process of the stack written down, not running
 	elsewhere bool     // running in a terminal conn does not hold
 	pid       int      // the process of one running elsewhere
 	state     string   // working, waiting or idle, where Claude Code says
@@ -763,6 +766,7 @@ func (m model) read() tea.Cmd {
 		}
 		running, waiting, turning, failed := map[string]int{}, map[string]int{}, map[string]int{}, map[string]int{}
 		total, broke := 0, 0
+		ran := ranIn(held, k.rootOf)
 		for _, p := range held {
 			seen = append(seen, sighting{Dir: p.Dir, When: time.Now()})
 			root := k.rootOf(p.Dir)
@@ -829,6 +833,7 @@ func (m model) read() tea.Cmd {
 		found := findProjects(repos, seen, home, k.rootOf)
 		for i := range found {
 			found[i].Running, found[i].Waiting, found[i].Turning, found[i].Failed = running[found[i].Root], waiting[found[i].Root], turning[found[i].Root], failed[found[i].Root]
+			found[i].Down = len(down(starts, ran, found[i]))
 		}
 		r.projects = group(found, func(dir string) bool { return k.isFolder(dir, home) })
 		// Each conversation waiting on you, on a question or with a
@@ -909,6 +914,15 @@ func (m model) read() tea.Cmd {
 			placed(r.rows, *cur, k)
 			placed(r.rest, *cur, k)
 			byPlace(r.rows)
+			// What is written down and not running comes last, dim.
+			for _, s := range down(starts, ran, *cur) {
+				s := s
+				d := row{down: &s, stand: placeStack}
+				if cur.Group && s.root != cur.Root {
+					d.repo = filepath.Base(s.root)
+				}
+				r.rows = append(r.rows, d)
+			}
 		}
 		return r
 	}
@@ -1134,6 +1148,27 @@ func (m model) reconcile(cmd tea.Cmd) (tea.Model, tea.Cmd) {
 	if m.ws.srv == nil || m.boot != nil {
 		return m, cmd
 	}
+	// What the hold in the workspace says, where the cursor is on a
+	// process written down and not running.
+	if says := m.says(); says != m.told {
+		m.told = says
+		// At once, before the rows are drawn, so the workspace says
+		// it as they appear.
+		if says == "" {
+			_, _ = m.srv.Do(tmux.UnsetGlobal(saysMark))
+		} else {
+			_, _ = m.srv.Do(tmux.SetGlobal(saysMark, says))
+		}
+		if bay, ok, _ := m.ws.shown(); ok && bay.Hold {
+			_, _ = m.srv.Do(tmux.SendKeys(bay.ID, hearKey))
+			// A moment is waited for the hold to have read it.
+			for end := time.Now().Add(heardWait); says != "" && time.Now().Before(end); time.Sleep(5 * time.Millisecond) {
+				if heard, _ := m.srv.Global(heardMark); heard == says {
+					break
+				}
+			}
+		}
+	}
 	if want := m.wanted(); want != m.asked {
 		m.asked = want
 		m.asks++
@@ -1159,6 +1194,19 @@ func (m model) wanted() string {
 	}
 	if r, ok := m.under(); ok && r.pane != nil {
 		return r.pane.ID
+	}
+	return ""
+}
+
+// says is what the hold in the workspace is to say: the name and the
+// command of the down row under the cursor, blank where it is on
+// anything else.
+func (m model) says() string {
+	if m.screen != onProject || m.listing || m.searching || m.follow != "" {
+		return ""
+	}
+	if r, ok := m.under(); ok && r.down != nil {
+		return r.down.name + " " + r.down.command
 	}
 	return ""
 }
@@ -3260,6 +3308,8 @@ func (m model) drawRow(r row, depth int, cursor bool) string {
 	case r.outside != nil:
 		// The mark says it is outside conn; the figure is its ports.
 		left = append(left, piece{r.outside.Name, ink})
+	case r.down != nil:
+		left, right = append(left, piece{r.down.name, gray}), piece{"down", faint}
 	}
 	if len(r.ports) > 0 {
 		right.s = strings.TrimSpace(":" + strings.Join(r.ports, " :") + "  " + right.s)
@@ -3369,6 +3419,9 @@ func (p project) standing() string {
 	if p.Failed > 0 {
 		said = append(said, fmt.Sprintf("%d failed", p.Failed))
 	}
+	if p.Down > 0 {
+		said = append(said, fmt.Sprintf("%d down", p.Down))
+	}
 	if len(said) == 0 {
 		return ago(p.Last)
 	}
@@ -3435,6 +3488,9 @@ func sayCounts(srv *tmux.Server, n, finished, failed int) {
 func (r row) key() string {
 	if r.conv != nil {
 		return r.conv.ID
+	}
+	if r.down != nil {
+		return "down " + r.down.root + "\x00" + r.down.name
 	}
 	// A named process is itself across its runs: run again, it is the
 	// same row in a new pane, in its checkout.
@@ -3605,6 +3661,16 @@ func (m model) objectKey(k tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 			if p, ok := r.proc(); ok {
 				return m, m.end(p)
 			}
+			if s := r.down; s != nil {
+				// Nothing runs to stop: the name is taken off for good,
+				// as x does in ss's question.
+				if err := recordStart(startedPath(m.srv.Socket), started{Root: or(s.root, m.cur.Root), Name: s.name, Command: s.command, Role: roleOff}); err != nil {
+					m.note = err.Error()
+					return m, nil
+				}
+				m.note = "off for good: ss won't start it and new agents aren't told it; u in ss's question puts it back"
+				return m, m.read()
+			}
 			return m, nil
 		}
 		if p, ok := m.lineUnder(); ok {
@@ -3645,7 +3711,7 @@ func (m model) objectKey(k tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 func (m model) inPlace(place int) []row {
 	var out []row
 	for _, r := range m.rows {
-		if r.stand == place {
+		if r.stand == place && r.down == nil {
 			out = append(out, r)
 		}
 	}
@@ -4019,6 +4085,7 @@ func (m model) inItself(f project) project {
 			f.Waiting -= q.Waiting
 			f.Turning -= q.Turning
 			f.Failed -= q.Failed
+			f.Down -= q.Down
 		}
 	}
 	return f

@@ -24,6 +24,9 @@ type project struct {
 	// and its checks running. Failed is the runs that ended in an
 	// error; a run that ended is not running.
 	Running, Waiting, Turning, Failed int
+	// Down is what the project has written down as its stack and does
+	// not run.
+	Down int
 	// Group is a folder holding two or more repositories: listed with
 	// them beneath it, and a project of its own that takes in all of
 	// theirs. Depth is a project's place under its folder in the list.
@@ -87,6 +90,7 @@ func group(ps []project, folder func(string) bool) []project {
 		f.Waiting += p.Waiting
 		f.Turning += p.Turning
 		f.Failed += p.Failed
+		f.Down += p.Down
 		if p.Last.After(f.Last) {
 			f.Last = p.Last
 		}

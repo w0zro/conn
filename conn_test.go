@@ -156,32 +156,10 @@ func TestNewCommand(t *testing.T) {
 // than tmux carries in one command, and the conversation still starts:
 // sc opens it, and the note is read in the pane and let go.
 func TestConverseInAProjectToldAtLength(t *testing.T) {
-	bin, err := exec.LookPath("tmux")
-	if err != nil {
-		t.Skip("no tmux")
-	}
-	scratch, err := os.MkdirTemp("/tmp", "cs-")
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() { _ = os.RemoveAll(scratch) })
-	scratch, _ = filepath.EvalSymlinks(scratch)
-	t.Setenv("HOME", scratch)
-	t.Setenv("CLAUDE_CONFIG_DIR", filepath.Join(scratch, ".claude"))
-	write(t, filepath.Join(scratch, "bin", "claude"), "#!/bin/sh\nexec sleep 1000\n")
-	if err := os.Chmod(filepath.Join(scratch, "bin", "claude"), 0o755); err != nil {
-		t.Fatal(err)
-	}
-	t.Setenv("PATH", filepath.Join(scratch, "bin")+":"+os.Getenv("PATH"))
-	web := filepath.Join(scratch, "web")
-	if err := os.MkdirAll(web, 0o755); err != nil {
-		t.Fatal(err)
-	}
-	srv := &tmux.Server{Tmux: bin, Socket: filepath.Join(scratch, "s")}
-	t.Cleanup(func() { _ = srv.Down() })
-	if _, err := srv.Run("-f", "/dev/null", "new-session", "-d", "-s", sessionName, "sleep 1000"); err != nil {
-		t.Fatal(err)
-	}
+	bin, scratch := tmuxScratch(t)
+	standInClaude(t, scratch)
+	web := makeDir(t, filepath.Join(scratch, "web"))
+	srv := plainServer(t, bin, scratch)
 	// Written down in the project: a hundred names, each run with a
 	// command of some length, as a project worked by agents comes to have.
 	long := strings.Repeat("--flag=value ", 20)
@@ -194,9 +172,8 @@ func TestConverseInAProjectToldAtLength(t *testing.T) {
 		t.Fatalf("the note is %d bytes; the test wants one tmux cannot carry", len(note))
 	}
 
-	k := newKnown()
-	k.root[web] = web
-	m := model{srv: srv, screen: onProject, cur: project{Name: "web", Root: web}, home: scratch, width: 120, height: 36, known: k}
+	k := knownRoots(web)
+	m := modelOnProject(srv, scratch, web, k)
 	next, _ := m.Update(m.read()())
 	m = next.(model)
 	for _, r := range "sc" {
@@ -206,26 +183,13 @@ func TestConverseInAProjectToldAtLength(t *testing.T) {
 	if m.in == "" {
 		t.Fatalf("sc started no conversation: %q", m.note)
 	}
-	ps, _ := panes(srv)
-	var agent *pane
-	for i := range ps {
-		if ps[i].ID == m.in {
-			agent = &ps[i]
-		}
-	}
+	agent := paneByID(srv, m.in)
 	if agent == nil || agent.Session == "" {
 		t.Fatalf("the keys are in %s, which is no conversation", m.in)
 	}
 	// The pane reads the note and lets the file go.
 	file := notePath(srv.Socket, agent.Session)
-	gone := false
-	for i := 0; i < 50 && !gone; i++ {
-		if _, err := os.Stat(file); err != nil {
-			gone = true
-		}
-		time.Sleep(20 * time.Millisecond)
-	}
-	if !gone {
+	if !noteGone(file) {
 		t.Errorf("the note still waits at %s", file)
 	}
 }
@@ -328,10 +292,9 @@ func TestWorktreeLine(t *testing.T) {
 		{pane: &pane{ID: "%1", Name: "web", Dir: "/w"}, branch: "fix-login", tree: "/w"},
 	}}
 	lines, _ := m.drawProject()
-	plain := regexp.MustCompile("\x1b\\[[0-9;]*m")
 	var got []string
 	for _, l := range lines {
-		if l = strings.TrimSpace(plain.ReplaceAllString(l, "")); l != "" {
+		if l = strings.TrimSpace(plainText(l)); l != "" {
 			got = append(got, l)
 		}
 	}
@@ -347,7 +310,7 @@ func TestWorktreeLine(t *testing.T) {
 	// The worktree's row stands two columns in from the project's own.
 	var cols []int
 	for _, l := range lines {
-		if l = plain.ReplaceAllString(l, ""); strings.Contains(l, "web") {
+		if l = plainText(l); strings.Contains(l, "web") {
 			cols = append(cols, utf8.RuneCountInString(l[:strings.Index(l, "web")]))
 		}
 	}
@@ -356,7 +319,7 @@ func TestWorktreeLine(t *testing.T) {
 	}
 	// The worktree stands a row off what is above it.
 	for i, l := range lines {
-		if strings.TrimSpace(plain.ReplaceAllString(l, "")) == "fix-login" && (i == 0 || strings.TrimSpace(lines[i-1]) != "") {
+		if strings.TrimSpace(plainText(l)) == "fix-login" && (i == 0 || strings.TrimSpace(lines[i-1]) != "") {
 			t.Errorf("no blank line before the worktree's head: %q", lines[max(i-1, 0):i+1])
 		}
 	}
@@ -600,15 +563,7 @@ func TestTypedPath(t *testing.T) {
 // conn's window is found by its mark, made where there is none, and
 // started again where it runs another build.
 func TestEnsurePanel(t *testing.T) {
-	bin, err := exec.LookPath("tmux")
-	if err != nil {
-		t.Skip("no tmux")
-	}
-	dir, err := os.MkdirTemp("/tmp", "cs-")
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer func() { _ = os.RemoveAll(dir) }()
+	bin, dir := tmuxScratch(t)
 	srv := &tmux.Server{Tmux: bin, Socket: filepath.Join(dir, "s")}
 	defer func() { _ = srv.Down() }()
 	if _, err := srv.Run("-f", "/dev/null", "new-session", "-d", "-s", sessionName, "-n", "conn", "sleep 1000"); err != nil {
@@ -738,20 +693,8 @@ func TestFind(t *testing.T) {
 // conn u starts a command under a name, the pane says how it ended,
 // conn l reads it, and conn x closes it.
 func TestStartWaitEnd(t *testing.T) {
-	bin, err := exec.LookPath("tmux")
-	if err != nil {
-		t.Skip("no tmux")
-	}
-	dir, err := os.MkdirTemp("/tmp", "cs-")
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer func() { _ = os.RemoveAll(dir) }()
-	srv := &tmux.Server{Tmux: bin, Socket: filepath.Join(dir, "s")}
-	defer func() { _ = srv.Down() }()
-	if _, err := srv.Run("-f", "/dev/null", "new-session", "-d", "-s", sessionName, "sleep 1000"); err != nil {
-		t.Fatal(err)
-	}
+	bin, dir := tmuxScratch(t)
+	srv := plainServer(t, bin, dir)
 	id, err := startNamed(srv, "check", "echo one; echo two; exit 3", dir, dir, roleCheck)
 	if err != nil {
 		t.Fatal(err)
@@ -767,13 +710,7 @@ func TestStartWaitEnd(t *testing.T) {
 	if own := sansEnd(lines, "check", "echo one; echo two; exit 3"); len(own) != 2 || own[0] != "one" || own[1] != "two" {
 		t.Errorf("less conn's own lines = %q", own)
 	}
-	ps, _ := panes(srv)
-	var p *pane
-	for i := range ps {
-		if ps[i].ID == id {
-			p = &ps[i]
-		}
-	}
+	p := paneByID(srv, id)
 	if p == nil || p.Name != "check" || p.Exit != "3" || time.Since(p.Ended) > time.Minute {
 		t.Fatalf("pane = %+v", p)
 	}
@@ -783,24 +720,14 @@ func TestStartWaitEnd(t *testing.T) {
 	// A server conn u started and that is still running is sent ctrl-c.
 	id, _ = startNamed(srv, "server", "sleep 1000", dir, dir, roleStack)
 	time.Sleep(300 * time.Millisecond)
-	ps, _ = panes(srv)
-	for i := range ps {
-		if ps[i].ID == id {
-			p = &ps[i]
-		}
-	}
+	p = paneByID(srv, id)
 	// Started again, it keeps its pane, under its name, with no end.
 	pid, _ := srv.Display(id, "#{pane_pid}")
 	if got, err := restartProc(srv, "conn", proc{pane: p, Name: "server"}); err != nil || got != id {
 		t.Fatalf("restart = %q, %v", got, err)
 	}
 	time.Sleep(300 * time.Millisecond)
-	ps, _ = panes(srv)
-	for i := range ps {
-		if ps[i].ID == id {
-			p = &ps[i]
-		}
-	}
+	p = paneByID(srv, id)
 	if again, _ := srv.Display(id, "#{pane_pid}"); again == pid || again == "" || p.Name != "server" || p.Exit != "" {
 		t.Errorf("the server was not started again in its pane: pid %s, then %s; pane %+v", pid, again, p)
 	}
@@ -883,20 +810,8 @@ func TestTells(t *testing.T) {
 // tmux tells a control-mode client of a window opened and of a change
 // in what a pane runs, and watch says changed for each.
 func TestWatchTmux(t *testing.T) {
-	bin, err := exec.LookPath("tmux")
-	if err != nil {
-		t.Skip("no tmux")
-	}
-	dir, err := os.MkdirTemp("/tmp", "cs-")
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer func() { _ = os.RemoveAll(dir) }()
-	srv := &tmux.Server{Tmux: bin, Socket: filepath.Join(dir, "s")}
-	defer func() { _ = srv.Down() }()
-	if _, err := srv.Run("-f", "/dev/null", "new-session", "-d", "-s", sessionName, "sleep 1000"); err != nil {
-		t.Fatal(err)
-	}
+	bin, dir := tmuxScratch(t)
+	srv := plainServer(t, bin, dir)
 	// Claude Code's own files are elsewhere, and still: what is heard is
 	// tmux.
 	t.Setenv("CLAUDE_CONFIG_DIR", t.TempDir())
@@ -904,14 +819,7 @@ func TestWatchTmux(t *testing.T) {
 	defer stop()
 	got := make(chan tea.Msg, 16)
 	go watch(ctx, func(m tea.Msg) { got <- m }, srv)
-	wait := func(what string) {
-		t.Helper()
-		select {
-		case <-got:
-		case <-time.After(3 * time.Second):
-			t.Fatalf("no word of %s", what)
-		}
-	}
+	wait := func(what string) { wordOn(t, got, what) }
 	wait("the subscription's first values")
 	if _, err := srv.Run("new-window", "-d", "-t", sessionName+":", "sleep 1000"); err != nil {
 		t.Fatal(err)
@@ -950,69 +858,15 @@ func TestParseTerminals(t *testing.T) {
 // starts waiting, not again while it still waits, nor as one is
 // answered.
 func TestWaitingReachesTheTab(t *testing.T) {
-	bin, err := exec.LookPath("tmux")
-	if err != nil {
-		t.Skip("no tmux")
-	}
-	script, err := exec.LookPath("script")
-	if err != nil {
-		t.Skip("no script to give a client a terminal")
-	}
-	dir, err := os.MkdirTemp("/tmp", "cs-")
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer func() { _ = os.RemoveAll(dir) }()
+	bin, dir := tmuxScratch(t)
 	path := write(t, filepath.Join(dir, "tmux.conf"), conf(theme.Dark))
 	srv := &tmux.Server{Tmux: bin, Socket: filepath.Join(dir, "s")}
 	defer func() { _ = srv.Down() }()
 	if _, err := srv.Run("-f", path, "new-session", "-d", "-s", sessionName, "-x", "80", "-y", "24", "sleep 1000"); err != nil {
 		t.Fatal(err)
 	}
-	// A terminal's client, on a terminal that takes a title, its output
-	// what the terminal would be sent.
-	attach := bin + " -S " + srv.Socket + " attach -t " + sessionName
-	var cmd *exec.Cmd
-	if runtime.GOOS == "darwin" {
-		cmd = exec.Command(script, "-q", "/dev/null", "/bin/sh", "-c", attach)
-	} else {
-		cmd = exec.Command(script, "-qfec", attach, "/dev/null")
-	}
-	cmd.Env = append(os.Environ(), "TERM=xterm-256color", "TMUX=")
-	in, keep, err := os.Pipe()
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer func() { _ = keep.Close() }()
-	cmd.Stdin = in
-	var out safeBuffer
-	cmd.Stdout, cmd.Stderr = &out, &out
-	if err := cmd.Start(); err != nil {
-		t.Fatal(err)
-	}
-	defer func() { _ = cmd.Process.Kill(); _ = cmd.Wait() }()
-	for deadline := time.Now().Add(3 * time.Second); len(terminals(srv)) == 0; time.Sleep(50 * time.Millisecond) {
-		if time.Now().After(deadline) {
-			t.Fatalf("no client attached: %q", out.String())
-		}
-	}
-	time.Sleep(300 * time.Millisecond)
-
-	// An operating system command ends in a BEL too, which is no bell:
-	// a title is the one numbered 0 or 2.
-	osc := regexp.MustCompile("\x1b\\]([0-9]*)(?:;([^\x07\x1b]*))?(?:\x07|\x1b\\\\)")
-	title := func() string {
-		got := ""
-		for _, m := range osc.FindAllStringSubmatch(out.String(), -1) {
-			if m[1] == "0" || m[1] == "2" {
-				got = m[2]
-			}
-		}
-		return got
-	}
-	bells := func() int {
-		return strings.Count(osc.ReplaceAllString(out.String(), ""), "\a")
-	}
+	terminal := attachTerminal(t, bin, srv)
+	title, bells := terminal.title, terminal.bells
 	say := func(n int, wantTitle string, wantBells int) {
 		t.Helper()
 		sayWaiting(srv, n)
@@ -1045,79 +899,14 @@ func TestWaitingReachesTheTab(t *testing.T) {
 // title is "conn · 1 waiting" again. What is read is the machine, as
 // the panel reads it: tmux's panes, and Claude Code's instance files.
 func TestAFailedRunReachesTheTab(t *testing.T) {
-	bin, err := exec.LookPath("tmux")
-	if err != nil {
-		t.Skip("no tmux")
-	}
-	script, err := exec.LookPath("script")
-	if err != nil {
-		t.Skip("no script to give a client a terminal")
-	}
-	shots := os.Getenv("SHOTS")
-	wear(theme.Dark)
-	t.Cleanup(undress)
-	g := theme.Dark
+	shots, g := darkShots(t, 6)
 
-	scratch, err := os.MkdirTemp("/tmp", "cs-")
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() { _ = os.RemoveAll(scratch) })
-	t.Setenv("HOME", scratch)
-	t.Setenv("CLAUDE_CONFIG_DIR", filepath.Join(scratch, ".claude"))
-	web := filepath.Join(scratch, "web")
-	if err := os.MkdirAll(web, 0o755); err != nil {
-		t.Fatal(err)
-	}
-	git(t, web, "init", "-q")
-	git(t, web, "commit", "-q", "--allow-empty", "-m", "first")
+	bin, scratch := tmuxScratch(t)
+	web := newRepo(t, filepath.Join(scratch, "web"))
 
-	path := write(t, filepath.Join(scratch, "tmux.conf"), conf(g))
-	srv := &tmux.Server{Tmux: bin, Socket: filepath.Join(scratch, "s")}
-	t.Cleanup(func() { _ = srv.Down() })
-	if _, err := srv.Run("-f", path, "new-session", "-d", "-s", sessionName, "-x", "120", "-y", "36", "-c", scratch, "sleep 1000"); err != nil {
-		t.Fatal(err)
-	}
-	attach := bin + " -S " + srv.Socket + " attach -t " + sessionName
-	var cmd *exec.Cmd
-	if runtime.GOOS == "darwin" {
-		cmd = exec.Command(script, "-q", "/dev/null", "/bin/sh", "-c", attach)
-	} else {
-		cmd = exec.Command(script, "-qfec", attach, "/dev/null")
-	}
-	cmd.Env = append(os.Environ(), "TERM=xterm-256color", "TMUX=")
-	in, keepOpen, err := os.Pipe()
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() { _ = keepOpen.Close() })
-	cmd.Stdin = in
-	var out safeBuffer
-	cmd.Stdout, cmd.Stderr = &out, &out
-	if err := cmd.Start(); err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() { _ = cmd.Process.Kill(); _ = cmd.Wait() })
-	for deadline := time.Now().Add(3 * time.Second); len(terminals(srv)) == 0; time.Sleep(50 * time.Millisecond) {
-		if time.Now().After(deadline) {
-			t.Fatalf("no client attached: %q", out.String())
-		}
-	}
-	time.Sleep(300 * time.Millisecond)
-
-	osc := regexp.MustCompile("\x1b\\]([0-9]*)(?:;([^\x07\x1b]*))?(?:\x07|\x1b\\\\)")
-	title := func() string {
-		got := ""
-		for _, m := range osc.FindAllStringSubmatch(out.String(), -1) {
-			if m[1] == "0" || m[1] == "2" {
-				got = m[2]
-			}
-		}
-		return got
-	}
-	bells := func() int {
-		return strings.Count(osc.ReplaceAllString(out.String(), ""), "\a")
-	}
+	srv := dressedServer(t, bin, scratch, g)
+	terminal := attachTerminal(t, bin, srv)
+	title, bells := terminal.title, terminal.bells
 
 	// A conversation already waiting, in web.
 	waiter := exec.Command("sleep", "1000")
@@ -1130,26 +919,10 @@ func TestAFailedRunReachesTheTab(t *testing.T) {
 
 	// The panel, open on web, as the panel reads the machine. The
 	// scratch is temporary, which is no project; here it is one.
-	k := newKnown()
-	k.root[web] = web
+	k := knownRoots(web)
 	m := model{srv: srv, home: scratch, conn: "conn", known: k, g: g, loaded: true,
 		screen: onProject, cur: project{Name: "web", Root: web}, width: panelWidth, height: 34}
-	feed := func(msg tea.Msg) {
-		if msg == nil {
-			return
-		}
-		if batch, ok := msg.(tea.BatchMsg); ok {
-			for _, c := range batch {
-				if c != nil {
-					next, _ := m.Update(c())
-					m = next.(model)
-				}
-			}
-			return
-		}
-		next, _ := m.Update(msg)
-		m = next.(model)
-	}
+	feed := func(msg tea.Msg) { m = updated(m, msg) }
 	press := func(keys string) {
 		for _, r := range keys {
 			next, c := m.Update(tea.KeyPressMsg(tea.Key{Code: r, Text: string(r)}))
@@ -1160,27 +933,12 @@ func TestAFailedRunReachesTheTab(t *testing.T) {
 		}
 	}
 
-	var said strings.Builder
-	shot := 0
 	frame := func(name string) {
-		if shots == "" {
+		if !shots.on() {
 			return
 		}
-		shot++
-		fmt.Fprintf(&said, "%s: title %q, bells %d, status line %q\n", name, title(), bells(), regexp.MustCompile(`#\[[^\]]*\]`).ReplaceAllString(statusRight(t, srv), ""))
-		if shot > 6 {
-			return
-		}
-		ground := fmt.Sprintf("\x1b]10;%s\x1b\\\x1b]11;%s\x1b\\\x1b[2J\x1b[H", theme.Hex(g.Ink), g.Surface)
-		// The panel at its width, the workspace beside it, and under
-		// them the status line, which tmux draws.
-		var screen strings.Builder
-		for _, l := range strings.Split(m.View().Content, "\n") {
-			screen.WriteString(l + "\x1b[0m" + strings.Repeat(" ", max(120-ansi.StringWidth(l), 0)) + "\r\n")
-		}
-		if err := os.WriteFile(filepath.Join(shots, name), []byte(ground+screen.String()+drawnStatus(t, srv)), 0o644); err != nil {
-			t.Error(err)
-		}
+		shots.note("tab-title-and-bell.txt", fmt.Sprintf("%s: title %q, bells %d, status line %q", name, title(), bells(), plainText(statusRight(t, srv))))
+		shots.panel(name, m, srv, true)
 	}
 
 	step := func(what, wantTitle string, wantBells int) {
@@ -1271,12 +1029,6 @@ func TestAFailedRunReachesTheTab(t *testing.T) {
 	step("with the lint dismissed", "conn · 1 waiting", 3)
 	failedSaid("with the lint dismissed", 0)
 	frame("dismissed-120x36.ans")
-
-	if shots != "" {
-		if err := os.WriteFile(filepath.Join(shots, "tab-title-and-bell.txt"), []byte(said.String()), 0o644); err != nil {
-			t.Error(err)
-		}
-	}
 }
 
 // statusRight is the right of conn's status line, as tmux expands it
@@ -1301,7 +1053,6 @@ func drawnStatus(t *testing.T, srv *tmux.Server) string {
 		t.Fatal(err)
 	}
 	left, right := strings.TrimRight(left, "\n"), statusRight(t, srv)
-	style := regexp.MustCompile(`#\[([^\]]*)\]`)
 	rgb := func(hex string) string {
 		r, _ := strconv.ParseUint(hex[1:3], 16, 8)
 		gr, _ := strconv.ParseUint(hex[3:5], 16, 8)
@@ -1312,7 +1063,7 @@ func drawnStatus(t *testing.T, srv *tmux.Server) string {
 	draw := func(s string) string {
 		var b strings.Builder
 		last := 0
-		for _, at := range style.FindAllStringSubmatchIndex(s, -1) {
+		for _, at := range tmuxStyle.FindAllStringSubmatchIndex(s, -1) {
 			b.WriteString(s[last:at[0]])
 			for _, attr := range strings.FieldsFunc(s[at[2]:at[3]], func(r rune) bool { return r == ',' || r == ' ' }) {
 				switch {
@@ -1328,7 +1079,7 @@ func drawnStatus(t *testing.T, srv *tmux.Server) string {
 		}
 		return b.String() + s[last:]
 	}
-	gap := 120 - utf8.RuneCountInString(style.ReplaceAllString(left, "")) - utf8.RuneCountInString(style.ReplaceAllString(right, ""))
+	gap := 120 - utf8.RuneCountInString(plainText(left)) - utf8.RuneCountInString(plainText(right))
 	return plain + draw(left) + plain + strings.Repeat(" ", max(gap, 0)) + draw(right) + plain +
 		"\x1b[0m\r\n\x1b[48;2;" + rgb(g.Surface) + "m" + strings.Repeat(" ", 120) + "\x1b[0m"
 }
@@ -1368,11 +1119,7 @@ func TestWatchFiles(t *testing.T) {
 	time.Sleep(200 * time.Millisecond)
 	wait := func(what string) {
 		t.Helper()
-		select {
-		case <-got:
-		case <-time.After(3 * time.Second):
-			t.Fatalf("no word of %s", what)
-		}
+		wordOn(t, got, what)
 		// What else the same change brought.
 		for drained := time.After(300 * time.Millisecond); ; {
 			select {
@@ -1570,19 +1317,578 @@ func TestParseStack(t *testing.T) {
 	}
 }
 
-// scratchServer is a tmux server of its own for a test, with conn's
-// session and a first window standing for conn's: a pane for the panel.
-func scratchServer(t *testing.T) (*tmux.Server, string, string) {
+// tmuxScratch skips a test where there is no tmux, and gives it the
+// path of tmux and a scratch directory of its own, with its symlinks
+// resolved as git and tmux say where things are; HOME, Claude Code's
+// configuration and conn's socket are in it.
+func tmuxScratch(t *testing.T) (string, string) {
+	t.Helper()
+	return tmuxScratchIn(t, "/tmp")
+}
+
+// tmuxScratchIn is tmuxScratch under base, for a test that wants its
+// scratch where conn does not take it for scratch that is no project.
+func tmuxScratchIn(t *testing.T, base string) (string, string) {
 	t.Helper()
 	bin, err := exec.LookPath("tmux")
 	if err != nil {
 		t.Skip("no tmux")
 	}
-	dir, err := os.MkdirTemp("/tmp", "cs-")
+	scratch, err := os.MkdirTemp(base, "cs-")
 	if err != nil {
 		t.Fatal(err)
 	}
-	t.Cleanup(func() { _ = os.RemoveAll(dir) })
+	t.Cleanup(func() { _ = os.RemoveAll(scratch) })
+	scratch, _ = filepath.EvalSymlinks(scratch)
+	t.Setenv("HOME", scratch)
+	t.Setenv("CLAUDE_CONFIG_DIR", filepath.Join(scratch, ".claude"))
+	t.Setenv("CONN_SOCKET", filepath.Join(scratch, "s"))
+	t.Setenv("LC_ALL", "C.UTF-8")
+	return bin, scratch
+}
+
+// makeDir makes dir, and any directory above it that is missing.
+func makeDir(t *testing.T, dir string) string {
+	t.Helper()
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	return dir
+}
+
+// plainServer is a tmux server of its own, with conn's session and no
+// configuration, its socket in scratch.
+func plainServer(t *testing.T, bin, scratch string) *tmux.Server {
+	t.Helper()
+	srv := &tmux.Server{Tmux: bin, Socket: filepath.Join(scratch, "s")}
+	t.Cleanup(func() { _ = srv.Down() })
+	if _, err := srv.Run("-f", "/dev/null", "new-session", "-d", "-s", sessionName, "sleep 1000"); err != nil {
+		t.Fatal(err)
+	}
+	return srv
+}
+
+// conversationIn opens a pane conn holds in dir, standing for the
+// conversation session, and gives its id and what writes its instance
+// file as Claude Code would, with the status given.
+func conversationIn(t *testing.T, srv *tmux.Server, scratch, name, dir, session string) (string, func(string)) {
+	t.Helper()
+	id, err := openWindow(srv, name, dir, "sleep 1000", session)
+	if err != nil {
+		t.Fatal(err)
+	}
+	pid, err := srv.Run("display", "-p", "-t", id, "#{pane_pid}")
+	if err != nil {
+		t.Fatal(err)
+	}
+	instance := filepath.Join(scratch, ".claude", "sessions", strings.TrimSpace(pid)+".json")
+	return id, func(s string) {
+		write(t, instance, `{"sessionId":"`+session+`","status":"`+s+`","cwd":"`+dir+`"}`)
+	}
+}
+
+// appendLines adds lines to a transcript.
+func appendLines(t *testing.T, path string, lines ...string) {
+	t.Helper()
+	f, err := os.OpenFile(path, os.O_APPEND|os.O_WRONLY, 0o600)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = f.Close() }()
+	for _, l := range lines {
+		if _, err := f.WriteString(l + "\n"); err != nil {
+			t.Fatal(err)
+		}
+	}
+}
+
+// toolUseLine is the line of a transcript in dir where the assistant
+// calls a tool.
+func toolUseLine(dir, id, name, input string) string {
+	return `{"type":"assistant","cwd":` + strconv.Quote(dir) + `,"message":{"role":"assistant","content":[{"type":"tool_use","id":"` + id + `","name":"` + name + `","input":` + input + `}]}}`
+}
+
+// toolResultLine is the line of a transcript in dir where a tool answers.
+func toolResultLine(dir, id string) string {
+	return `{"type":"user","cwd":` + strconv.Quote(dir) + `,"message":{"role":"user","content":[{"type":"tool_result","tool_use_id":"` + id + `","content":"ok"}]}}`
+}
+
+// knownRoots is what the panel knows of directories that are projects,
+// where the scratch they stand in is temporary and so no project.
+func knownRoots(roots ...string) *known {
+	k := newKnown()
+	for _, r := range roots {
+		k.root[r] = r
+	}
+	return k
+}
+
+// modelOnProject is the panel, 120 by 36, open on the project at root.
+func modelOnProject(srv *tmux.Server, home, root string, k *known) model {
+	return model{srv: srv, screen: onProject, cur: project{Name: filepath.Base(root), Root: root}, home: home, width: 120, height: 36, known: k}
+}
+
+// modelOnProjects is the panel at the width conn gives it, on the
+// projects screen, its workspace beside it.
+func modelOnProjects(srv *tmux.Server, ws workspace, own, home string, g theme.Ground, k *known) model {
+	return model{srv: srv, ws: ws, own: own, screen: onProjects, home: home, conn: "conn", known: k, g: g, loaded: true, width: panelWidth, height: 34}
+}
+
+// indent is how many columns of blank a line starts with.
+func indent(s string) int {
+	return ansi.StringWidth(s) - ansi.StringWidth(strings.TrimLeft(s, " "))
+}
+
+// grayInk is the style the panel writes in gray.
+func grayInk() string {
+	return lastSGR(strings.SplitN(gray.Render("x"), "x", 2)[0])
+}
+
+// rowUnder is where the row of name stands among the lines, and the
+// line under it; the test stops where there is no such row.
+func rowUnder(t *testing.T, what string, lines []string, name string) (int, string) {
+	t.Helper()
+	at := rowOf(lines, name)
+	if at < 0 {
+		t.Fatalf("%s, the panel has no row for %s:\n%s", what, name, strings.Join(lines, "\n"))
+	}
+	if at+1 < len(lines) {
+		return at, lines[at+1]
+	}
+	return at, ""
+}
+
+// saysUnder checks that the line under the row at of name, which is
+// next, says want, starts under the name and is in the gray from the
+// mark in it on; it is whether it says want.
+func saysUnder(t *testing.T, what string, raw, lines []string, at int, next, name, want, mark string) bool {
+	t.Helper()
+	if strings.TrimSpace(next) != want {
+		t.Errorf("%s, under %s's row the panel says %q, want %q:\n%s", what, name, strings.TrimSpace(next), want, strings.Join(lines, "\n"))
+		return false
+	}
+	if col := strings.Index(lines[at], name); indent(next) != ansi.StringWidth(lines[at][:col]) {
+		t.Errorf("%s, the line %q starts at column %d, not under the name in %q", what, next, indent(next), lines[at])
+	}
+	if i := strings.Index(raw[at+1], mark); i < 0 || lastSGR(raw[at+1][:i]) != grayInk() {
+		t.Errorf("%s, the line %q is not in the gray: %q", what, next, raw[at+1])
+	}
+	return true
+}
+
+// saysUnderWeb checks that, under web's line on the projects screen
+// that says it failed, a line names the run and says want after its
+// name, in the gray from the mark in it on; it is whether there is one.
+func saysUnderWeb(t *testing.T, what string, raw, lines []string, name, want, mark string) bool {
+	t.Helper()
+	top := -1
+	for i, l := range lines {
+		if strings.Contains(l, "web") && strings.Contains(l, "failed") {
+			top = i
+		}
+	}
+	if top < 0 {
+		t.Fatalf("%s, web's line does not say what failed:\n%s", what, strings.Join(lines, "\n"))
+	}
+	for i := top + 1; i < len(lines); i++ {
+		l := lines[i]
+		n, w := strings.Index(l, name), strings.Index(l, want)
+		if n < 0 || w < 0 {
+			continue
+		}
+		if n > w || indent(l) <= indent(lines[top]) {
+			t.Errorf("%s, the line %q does not name %s first, indented under web's %q", what, l, name, lines[top])
+		}
+		if at := strings.Index(raw[i], mark); at < 0 || lastSGR(raw[i][:at]) != grayInk() {
+			t.Errorf("%s, %q is not in the gray: %q", what, want, raw[i])
+		}
+		return true
+	}
+	t.Errorf("%s, no line under web names %s and says %q:\n%s", what, name, want, strings.Join(lines, "\n"))
+	return false
+}
+
+// paneByID is the pane of the server with the id, or nil.
+func paneByID(srv *tmux.Server, id string) *pane {
+	ps, _ := panes(srv)
+	for i := range ps {
+		if ps[i].ID == id {
+			return &ps[i]
+		}
+	}
+	return nil
+}
+
+// noteGone is whether the file is let go of within a second.
+func noteGone(file string) bool {
+	for i := 0; i < 50; i++ {
+		if _, err := os.Stat(file); err != nil {
+			return true
+		}
+		time.Sleep(20 * time.Millisecond)
+	}
+	return false
+}
+
+// readUntil reads the machine into m until done or three seconds are
+// up, and once more after a moment: a bell too many would come at once.
+func readUntil(m *model, done func() bool) {
+	for deadline := time.Now().Add(3 * time.Second); ; time.Sleep(100 * time.Millisecond) {
+		*m = updated(*m, m.read()())
+		if done() || time.Now().After(deadline) {
+			break
+		}
+	}
+	time.Sleep(300 * time.Millisecond)
+	*m = updated(*m, m.read()())
+	time.Sleep(300 * time.Millisecond)
+}
+
+// pressed is m after the key, and after what it asks for.
+func pressed(m model, k tea.Key) model {
+	next, c := m.Update(tea.KeyPressMsg(k))
+	if c != nil {
+		return updated(next.(model), c())
+	}
+	return next.(model)
+}
+
+// wordOn waits for a word on got, and stops the test if none comes.
+func wordOn[T any](t *testing.T, got <-chan T, what string) {
+	t.Helper()
+	select {
+	case <-got:
+	case <-time.After(3 * time.Second):
+		t.Fatalf("no word of %s", what)
+	}
+}
+
+// cliServer is a tmux server of conn's session for the command line,
+// with the directory its socket is in.
+func cliServer(t *testing.T) (*tmux.Server, string) {
+	t.Helper()
+	srv, _, _ := scratchServer(t)
+	return srv, filepath.Dir(srv.Socket)
+}
+
+// readProjects is the projects screen, 120 by 36, with what the machine
+// shows read into it.
+func readProjects(srv *tmux.Server, home string, g theme.Ground, k *known) model {
+	m := model{srv: srv, screen: onProjects, home: home, conn: "conn", known: k, g: g, width: 120, height: 36}
+	return updated(m, m.read()())
+}
+
+// panesOf is the panes of the server; the test stops where it cannot say.
+func panesOf(t *testing.T, srv *tmux.Server) []pane {
+	t.Helper()
+	ps, err := panes(srv)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return ps
+}
+
+// projectsRead is the projects screen at the width, as the machine
+// shows it now, beside what m has seen.
+func projectsRead(m model, width int) model {
+	m.screen, m.cursor, m.width, m.height = onProjects, 0, width, 36
+	return updated(m, m.read()())
+}
+
+// panelRead is the panel of the project at web, as the machine shows it
+// now, beside what m has seen, the cursor off the conversation's row,
+// on the dev server's.
+func panelRead(m model, web string) model {
+	if m.screen != onProject || m.cur.Root != web {
+		m.screen, m.cur, m.rows, m.cursor = onProject, project{Name: "web", Root: web}, nil, 0
+	}
+	m.width, m.height = panelWidth, 34
+	m = updated(m, m.read()())
+	for i, it := range m.items() {
+		if it.row >= 0 && m.rows[it.row].conv == nil {
+			m.cursor = i
+		}
+	}
+	return m
+}
+
+// newRepo is a git repository at dir, with a first commit.
+func newRepo(t *testing.T, dir string) string {
+	t.Helper()
+	makeDir(t, dir)
+	git(t, dir, "init", "-q")
+	git(t, dir, "commit", "-q", "--allow-empty", "-m", "first")
+	return dir
+}
+
+// standInClaude puts a claude that waits first on the PATH, in scratch.
+func standInClaude(t *testing.T, scratch string) {
+	t.Helper()
+	write(t, filepath.Join(scratch, "bin", "claude"), "#!/bin/sh\nexec sleep 1000\n")
+	if err := os.Chmod(filepath.Join(scratch, "bin", "claude"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("PATH", filepath.Join(scratch, "bin")+":"+os.Getenv("PATH"))
+}
+
+// transcriptPath is where Claude Code, in scratch, keeps conversation
+// id of the project at dir.
+func transcriptPath(scratch, dir, id string) string {
+	return filepath.Join(scratch, ".claude", "projects", regexp.MustCompile("[^A-Za-z0-9]").ReplaceAllString(dir, "-"), id+".jsonl")
+}
+
+// terminal is the output of a client of a tmux server, on a terminal
+// that takes a title: what the terminal would be sent.
+type terminal struct{ out *safeBuffer }
+
+// attachTerminal attaches such a client to srv, skipping the test where
+// there is no script to give it a terminal.
+func attachTerminal(t *testing.T, bin string, srv *tmux.Server) terminal {
+	t.Helper()
+	script, err := exec.LookPath("script")
+	if err != nil {
+		t.Skip("no script to give a client a terminal")
+	}
+	attach := bin + " -S " + srv.Socket + " attach -t " + sessionName
+	var cmd *exec.Cmd
+	if runtime.GOOS == "darwin" {
+		cmd = exec.Command(script, "-q", "/dev/null", "/bin/sh", "-c", attach)
+	} else {
+		cmd = exec.Command(script, "-qfec", attach, "/dev/null")
+	}
+	cmd.Env = append(os.Environ(), "TERM=xterm-256color", "TMUX=")
+	in, keepOpen, err := os.Pipe()
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = keepOpen.Close() })
+	cmd.Stdin = in
+	var out safeBuffer
+	cmd.Stdout, cmd.Stderr = &out, &out
+	if err := cmd.Start(); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = cmd.Process.Kill(); _ = cmd.Wait() })
+	for deadline := time.Now().Add(3 * time.Second); len(terminals(srv)) == 0; time.Sleep(50 * time.Millisecond) {
+		if time.Now().After(deadline) {
+			t.Fatalf("no client attached: %q", out.String())
+		}
+	}
+	time.Sleep(300 * time.Millisecond)
+	return terminal{&out}
+}
+
+// An operating system command ends in a BEL too, which is no bell: a
+// title is the one numbered 0 or 2.
+var osc = regexp.MustCompile("\x1b\\]([0-9]*)(?:;([^\x07\x1b]*))?(?:\x07|\x1b\\\\)")
+
+// title is the last title the terminal was sent.
+func (c terminal) title() string {
+	got := ""
+	for _, m := range osc.FindAllStringSubmatch(c.out.String(), -1) {
+		if m[1] == "0" || m[1] == "2" {
+			got = m[2]
+		}
+	}
+	return got
+}
+
+// bells is how many times the terminal was told to ring.
+func (c terminal) bells() int {
+	return strings.Count(osc.ReplaceAllString(c.out.String(), ""), "\a")
+}
+
+// shotDir saves what the person sees as the pages of the manual show
+// it, into the directory SHOTS names; where it names none, it saves
+// nothing. A test that takes many frames keeps the first max of them,
+// all of them where max is 0.
+type shotDir struct {
+	t         *testing.T
+	dir       string
+	g         theme.Ground
+	max, took int
+	said      strings.Builder
+}
+
+func newShots(t *testing.T, g theme.Ground, max int) *shotDir {
+	return &shotDir{t: t, dir: os.Getenv("SHOTS"), g: g, max: max}
+}
+
+// darkShots is shots in the dark theme, worn for the test.
+func darkShots(t *testing.T, max int) (*shotDir, theme.Ground) {
+	wear(theme.Dark)
+	t.Cleanup(undress)
+	return newShots(t, theme.Dark, max), theme.Dark
+}
+
+func (s *shotDir) on() bool { return s.dir != "" }
+
+// note adds a line to what the file says, and saves it.
+func (s *shotDir) note(file, line string) {
+	if !s.on() {
+		return
+	}
+	s.said.WriteString(line + "\n")
+	if err := os.WriteFile(filepath.Join(s.dir, file), []byte(s.said.String()), 0o644); err != nil {
+		s.t.Error(err)
+	}
+}
+
+// screen saves a screen as the terminal is sent it, on the theme's ground.
+func (s *shotDir) screen(name, content string) {
+	if !s.on() {
+		return
+	}
+	ground := fmt.Sprintf("\x1b]10;%s\x1b\\\x1b]11;%s\x1b\\\x1b[2J\x1b[H", theme.Hex(s.g.Ink), s.g.Surface)
+	if err := os.WriteFile(filepath.Join(s.dir, name), []byte(ground+content+"\x1b[0m"), 0o644); err != nil {
+		s.t.Error(err)
+	}
+}
+
+// view saves what the panel's model shows.
+func (s *shotDir) view(name string, m model) {
+	s.screen(name, strings.ReplaceAll(m.View().Content, "\n", "\x1b[0m\r\n"))
+}
+
+// panel saves what the panel's model shows at the width of the window,
+// with the status line tmux draws under it where a project is open, or
+// under any screen where always is true.
+func (s *shotDir) panel(name string, m model, srv *tmux.Server, always bool) {
+	if !s.on() {
+		return
+	}
+	if s.took++; s.max > 0 && s.took > s.max {
+		return
+	}
+	var b strings.Builder
+	for _, l := range strings.Split(m.View().Content, "\n") {
+		b.WriteString(l + "\x1b[0m" + strings.Repeat(" ", max(120-ansi.StringWidth(l), 0)) + "\r\n")
+	}
+	if always || m.screen == onProject {
+		b.WriteString(drawnStatus(s.t, srv))
+	}
+	s.screen(name, strings.TrimSuffix(b.String(), "\r\n"))
+}
+
+// dressedServer is a tmux server of its own in the theme's
+// configuration, with conn's session in a window of 120 by 36 started
+// in scratch.
+func dressedServer(t *testing.T, bin, scratch string, g theme.Ground) *tmux.Server {
+	t.Helper()
+	srv, _, _ := dressedSession(t, bin, scratch, g)
+	return srv
+}
+
+// dressedSession is dressedServer, saying the window and the pane the
+// session began with.
+func dressedSession(t *testing.T, bin, scratch string, g theme.Ground) (*tmux.Server, string, string) {
+	t.Helper()
+	path := write(t, filepath.Join(scratch, "tmux.conf"), conf(g))
+	srv := &tmux.Server{Tmux: bin, Socket: filepath.Join(scratch, "s")}
+	t.Cleanup(func() { _ = srv.Down() })
+	out, err := srv.Run("-f", path, "new-session", "-d", "-s", sessionName, "-x", "120", "-y", "36", "-c", scratch, "-P", "-F", "#{window_id} #{pane_id}", "sleep 1000")
+	if err != nil {
+		t.Fatal(err)
+	}
+	win, pane, _ := strings.Cut(strings.TrimSpace(out), " ")
+	return srv, win, pane
+}
+
+// panelWindow is conn's window of a server dressed as dressedServer:
+// the panel, and beside it the workspace.
+func panelWindow(t *testing.T, bin, scratch string, g theme.Ground) (*tmux.Server, workspace, string) {
+	t.Helper()
+	srv, win, own := dressedSession(t, bin, scratch, g)
+	if _, err := srv.Do(tmux.SetPane(own, panelMark, "1")); err != nil {
+		t.Fatal(err)
+	}
+	ws := newWorkspace(srv, win, own, "/x")
+	ws.hold = "sleep 1000"
+	return srv, ws, own
+}
+
+// updated is m after msg, and after what the commands it sends come to,
+// each in turn.
+func updated(m model, msg tea.Msg) model {
+	if msg == nil {
+		return m
+	}
+	if batch, ok := msg.(tea.BatchMsg); ok {
+		for _, c := range batch {
+			if c != nil {
+				m = updated(m, c())
+			}
+		}
+		return m
+	}
+	next, _ := m.Update(msg)
+	return next.(model)
+}
+
+// drawnScreen is what m draws, as it is and as it reads on a plain
+// terminal, without the blank at the end of each line.
+func drawnScreen(m model) (raw, lines []string) {
+	raw, _ = m.draw()
+	lines = make([]string, len(raw))
+	for i := range raw {
+		lines[i] = strings.TrimRight(plainText(raw[i]), " ")
+	}
+	return raw, lines
+}
+
+// pump is m after cmd has run, and what it asks for in turn, down to
+// limit commands deep; one that takes longer than a moment is let go.
+func pump(m model, cmd tea.Cmd, limit int) model {
+	if cmd == nil || limit < 0 {
+		return m
+	}
+	got := make(chan tea.Msg, 1)
+	go func() { got <- cmd() }()
+	var msg tea.Msg
+	select {
+	case msg = <-got:
+	case <-time.After(2 * time.Second):
+		return m
+	}
+	if batch, ok := msg.(tea.BatchMsg); ok {
+		for _, c := range batch {
+			m = pump(m, c, limit-1)
+		}
+		return m
+	}
+	if msg == nil {
+		return m
+	}
+	next, more := m.Update(msg)
+	return pump(next.(model), more, limit-1)
+}
+
+// lineSaying is the first of the lines that has s in it, or -1.
+func lineSaying(lines []string, s string) int {
+	for i, l := range lines {
+		if strings.Contains(l, s) {
+			return i
+		}
+	}
+	return -1
+}
+
+// rowOf is the line that says a row's name after its mark.
+func rowOf(lines []string, name string) int {
+	re := regexp.MustCompile(`^[▌ ]*\S ` + regexp.QuoteMeta(name) + `(\s|$)`)
+	for i, l := range lines {
+		if re.MatchString(l) {
+			return i
+		}
+	}
+	return -1
+}
+
+// scratchServer is a tmux server of its own for a test, with conn's
+// session and a first window standing for conn's: a pane for the panel.
+func scratchServer(t *testing.T) (*tmux.Server, string, string) {
+	t.Helper()
+	bin, dir := tmuxScratch(t)
 	srv := &tmux.Server{Tmux: bin, Socket: filepath.Join(dir, "s")}
 	t.Cleanup(func() { _ = srv.Down() })
 	out, err := srv.Run("-f", "/dev/null", "new-session", "-d", "-s", sessionName, "-x", "160", "-y", "40", "-P", "-F", "#{window_id} #{pane_id}", "sleep 1000")
@@ -1674,13 +1980,7 @@ func TestEndInPlace(t *testing.T) {
 		t.Fatal(err)
 	}
 	time.Sleep(300 * time.Millisecond)
-	ps, _ := panes(srv)
-	var p *pane
-	for i := range ps {
-		if ps[i].ID == id {
-			p = &ps[i]
-		}
-	}
+	p := paneByID(srv, id)
 	if how, err := endProc(srv, ws.hold, proc{pane: p, Name: "web"}); err != nil || how != "send-keys C-c" {
 		t.Errorf("end = %q, %v", how, err)
 	}
@@ -1692,12 +1992,7 @@ func TestEndInPlace(t *testing.T) {
 	}
 	aside, _ := startNamed(srv, "worker", "sleep 1000", dir, dir, roleStack)
 	time.Sleep(300 * time.Millisecond)
-	ps, _ = panes(srv)
-	for i := range ps {
-		if ps[i].ID == aside {
-			p = &ps[i]
-		}
-	}
+	p = paneByID(srv, aside)
 	if how, err := endProc(srv, ws.hold, proc{pane: p, Name: "worker"}); err != nil || how != "send-keys C-c" {
 		t.Errorf("end out of sight = %q, %v", how, err)
 	}
@@ -1935,9 +2230,7 @@ func TestStarted(t *testing.T) {
 // conn u writes down what it started as the stack, and what it waited
 // on as a check.
 func TestRunUWritesItDown(t *testing.T) {
-	srv, _, _ := scratchServer(t)
-	t.Setenv("CONN_SOCKET", srv.Socket)
-	dir := filepath.Dir(srv.Socket)
+	srv, dir := cliServer(t)
 	var out strings.Builder
 	if code := runU(&out, t.TempDir(), dir, []string{"web", "--", "sleep 1000"}); code != 0 {
 		t.Fatalf("conn u web = %d: %s", code, out.String())
@@ -1954,9 +2247,7 @@ func TestRunUWritesItDown(t *testing.T) {
 // conn down takes the server down, and with it everything running
 // there; with no server up, it is an error.
 func TestRunDown(t *testing.T) {
-	srv, _, _ := scratchServer(t)
-	t.Setenv("CONN_SOCKET", srv.Socket)
-	dir := filepath.Dir(srv.Socket)
+	srv, dir := cliServer(t)
 	var out strings.Builder
 	if code := runU(&out, t.TempDir(), dir, []string{"web", "--", "sleep 1000"}); code != 0 {
 		t.Fatalf("conn u web = %d: %s", code, out.String())
@@ -1980,9 +2271,7 @@ func TestRunDown(t *testing.T) {
 // nowhere, so what an agent runs to see something does not pile up as
 // what the project runs.
 func TestRunUUnderNoNameIsNotWrittenDown(t *testing.T) {
-	srv, _, _ := scratchServer(t)
-	t.Setenv("CONN_SOCKET", srv.Socket)
-	dir := filepath.Dir(srv.Socket)
+	srv, dir := cliServer(t)
 	var out strings.Builder
 	if code := runU(&out, t.TempDir(), dir, []string{"-w", "--", "echo once; exit 3"}); code != 3 || out.String() != "once\n" {
 		t.Fatalf("conn u -w = %d: %q", code, out.String())
@@ -1992,10 +2281,7 @@ func TestRunUUnderNoNameIsNotWrittenDown(t *testing.T) {
 	}
 	// Waited on and read, its pane is closed with it: the caller has
 	// what it said, and a one-off does not stand as a row.
-	ps, err := panes(srv)
-	if err != nil {
-		t.Fatal(err)
-	}
+	ps := panesOf(t, srv)
 	for _, p := range ps {
 		if p.Run != "" {
 			t.Errorf("the pane of a waited run under no name stands after it was read: %+v", p)
@@ -2010,13 +2296,7 @@ func TestRunUUnderNoNameIsNotWrittenDown(t *testing.T) {
 	if _, err := waitExit(srv, id); err != nil {
 		t.Fatal(err)
 	}
-	ps, _ = panes(srv)
-	var run *pane
-	for i := range ps {
-		if ps[i].ID == id {
-			run = &ps[i]
-		}
-	}
+	run := paneByID(srv, id)
 	if run == nil || run.Name != "" || run.Run != "echo once; exit 3" || run.Role != roleCheck || run.Exit != "3" {
 		t.Fatalf("pane = %+v", run)
 	}
@@ -2055,9 +2335,7 @@ func TestRunUUnderNoNameIsNotWrittenDown(t *testing.T) {
 // command given now: a name is one row across its runs, and an agent
 // that runs a check again does not need a new name for it.
 func TestRunUOnANameUpStartsItAgain(t *testing.T) {
-	srv, _, _ := scratchServer(t)
-	t.Setenv("CONN_SOCKET", srv.Socket)
-	dir := filepath.Dir(srv.Socket)
+	srv, dir := cliServer(t)
 	var out strings.Builder
 	if code := runU(&out, t.TempDir(), dir, []string{"web", "--", "sleep 1000"}); code != 0 {
 		t.Fatalf("conn u web = %d: %s", code, out.String())
@@ -2079,10 +2357,7 @@ func TestRunUOnANameUpStartsItAgain(t *testing.T) {
 // findByName is the pane a name answers to, and how many do.
 func findByName(t *testing.T, srv *tmux.Server, name string) (pane, int) {
 	t.Helper()
-	ps, err := panes(srv)
-	if err != nil {
-		t.Fatal(err)
-	}
+	ps := panesOf(t, srv)
 	var found pane
 	n := 0
 	for _, p := range ps {
@@ -2098,7 +2373,6 @@ func findByName(t *testing.T, srv *tmux.Server, name string) (pane, int) {
 // run a check there is still working its own.
 func TestRunUFromAPaneIsThePanesProject(t *testing.T) {
 	srv, _, _ := scratchServer(t)
-	t.Setenv("CONN_SOCKET", srv.Socket)
 	own, other := filepath.Join(filepath.Dir(srv.Socket), "own"), filepath.Join(filepath.Dir(srv.Socket), "other")
 	for _, d := range []string{own, other} {
 		if err := os.Mkdir(d, 0o755); err != nil {
@@ -2122,10 +2396,7 @@ func TestRunUFromAPaneIsThePanesProject(t *testing.T) {
 	if len(got) != 1 || got[0].Root != realDir(own) {
 		t.Errorf("written down as %+v, not the pane's project %s", got, own)
 	}
-	ps, err := panes(srv)
-	if err != nil {
-		t.Fatal(err)
-	}
+	ps := panesOf(t, srv)
 	var site pane
 	for _, p := range ps {
 		if p.Name == "site" {
@@ -2198,35 +2469,12 @@ func TestHandPrompt(t *testing.T) {
 // handed, and the brief waits for the agent in a file that it reads
 // and lets go.
 func TestHandingLeavesTheAgentToIt(t *testing.T) {
-	bin, err := exec.LookPath("tmux")
-	if err != nil {
-		t.Skip("no tmux")
-	}
-	scratch, err := os.MkdirTemp("/tmp", "cs-")
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() { _ = os.RemoveAll(scratch) })
-	// git and tmux say where things are with /tmp's symlink resolved.
-	scratch, _ = filepath.EvalSymlinks(scratch)
-	t.Setenv("HOME", scratch)
-	t.Setenv("CLAUDE_CONFIG_DIR", filepath.Join(scratch, ".claude"))
+	bin, scratch := tmuxScratch(t)
 	// claude, as conn starts it with the brief, waits.
-	write(t, filepath.Join(scratch, "bin", "claude"), "#!/bin/sh\nexec sleep 1000\n")
-	if err := os.Chmod(filepath.Join(scratch, "bin", "claude"), 0o755); err != nil {
-		t.Fatal(err)
-	}
-	t.Setenv("PATH", filepath.Join(scratch, "bin")+":"+os.Getenv("PATH"))
-	web := filepath.Join(scratch, "web")
-	if err := os.MkdirAll(web, 0o755); err != nil {
-		t.Fatal(err)
-	}
+	standInClaude(t, scratch)
+	web := makeDir(t, filepath.Join(scratch, "web"))
 
-	srv := &tmux.Server{Tmux: bin, Socket: filepath.Join(scratch, "s")}
-	t.Cleanup(func() { _ = srv.Down() })
-	if _, err := srv.Run("-f", "/dev/null", "new-session", "-d", "-s", sessionName, "sleep 1000"); err != nil {
-		t.Fatal(err)
-	}
+	srv := plainServer(t, bin, scratch)
 	// A process of the project's, running, to hand.
 	held, err := openWindow(srv, "web", web, "sleep 1000", "")
 	if err != nil {
@@ -2234,9 +2482,8 @@ func TestHandingLeavesTheAgentToIt(t *testing.T) {
 	}
 
 	// The scratch is temporary, which is no project; here it is one.
-	k := newKnown()
-	k.root[web] = web
-	m := model{srv: srv, screen: onProject, cur: project{Name: "web", Root: web}, home: scratch, width: 120, height: 36, known: k}
+	k := knownRoots(web)
+	m := modelOnProject(srv, scratch, web, k)
 	read := func(m model) model {
 		next, _ := m.Update(m.read()())
 		return next.(model)
@@ -2282,14 +2529,7 @@ func TestHandingLeavesTheAgentToIt(t *testing.T) {
 	}
 	// The agent reads its brief and lets the file go.
 	file := promptPath(srv.Socket, agent.Session)
-	gone := false
-	for i := 0; i < 50 && !gone; i++ {
-		if _, err := os.Stat(file); err != nil {
-			gone = true
-		}
-		time.Sleep(20 * time.Millisecond)
-	}
-	if !gone {
+	if !noteGone(file) {
 		t.Errorf("the brief still waits at %s", file)
 	}
 	if m.in != "" {
@@ -2313,8 +2553,7 @@ func TestAgentNote(t *testing.T) {
 // x on a project ends everything conn holds in it and nothing in
 // another project.
 func TestEndAll(t *testing.T) {
-	srv, _, _ := scratchServer(t)
-	dir := filepath.Dir(srv.Socket)
+	srv, dir := cliServer(t)
 	other := t.TempDir()
 	for _, p := range [][2]string{{"web", dir}, {"worker", dir}, {"theirs", other}} {
 		if _, err := startNamed(srv, p[0], "sleep 1000", p[1], realDir(p[1]), roleStack); err != nil {
@@ -2415,8 +2654,7 @@ func TestSpeaksHTTP(t *testing.T) {
 // c on a conversation goes into it; on a named run whose client is
 // kept, it opens the client with no question.
 func TestTalk(t *testing.T) {
-	srv, _, _ := scratchServer(t)
-	dir := filepath.Dir(srv.Socket)
+	srv, dir := cliServer(t)
 	m := model{srv: srv, screen: onProject, cur: project{Name: "d", Root: realDir(dir)}}
 	conv := row{conv: &conversation{ID: "c1"}, pane: &pane{ID: "%9", Session: "c1"}}
 	next, _ := m.talk(conv)
@@ -2536,9 +2774,25 @@ func undress() {
 	chosen, chosenBar, ruleStyle, turning, passed, chosenTurning = plain, plain, plain, plain, plain, plain
 }
 
+// The styles a screen is dressed in: the terminal's, which the panel
+// writes, and tmux's, which the status line holds.
+var (
+	sgrStyle  = regexp.MustCompile("\x1b\\[([0-9;]*)m")
+	tmuxStyle = regexp.MustCompile(`#\[([^\]]*)\]`)
+)
+
 // plainText is a drawn line with its styles taken off.
 func plainText(s string) string {
-	return regexp.MustCompile("\x1b\\[[0-9;]*m").ReplaceAllString(s, "")
+	return tmuxStyle.ReplaceAllString(sgrStyle.ReplaceAllString(s, ""), "")
+}
+
+// lastSGR is the last of the terminal's styles in s.
+func lastSGR(s string) string {
+	all := sgrStyle.FindAllString(s, -1)
+	if len(all) == 0 {
+		return ""
+	}
+	return all[len(all)-1]
 }
 
 // A run that has ended says how long ago in the figure column, which
@@ -2753,11 +3007,7 @@ func TestConfWearsTheGround(t *testing.T) {
 			}
 		}
 	}
-	bin, err := exec.LookPath("tmux")
-	if err != nil {
-		t.Skip("no tmux")
-	}
-	dir := t.TempDir()
+	bin, dir := tmuxScratch(t)
 	path := write(t, filepath.Join(dir, "tmux.conf"), conf(theme.Light))
 	srv := &tmux.Server{Tmux: bin, Socket: filepath.Join(dir, "s")}
 	t.Cleanup(func() { _ = srv.Down() })
@@ -2785,9 +3035,8 @@ func TestKeyBar(t *testing.T) {
 	}
 	// The bar fits a window of ordinary width: tmux cuts what runs off
 	// the right, and the keys in full are behind ? instead.
-	styled := regexp.MustCompile(`#\[[^\]]*\]`)
 	for _, hints := range [][]keyHint{projectHints, projectsHints} {
-		if w := ansi.StringWidth(styled.ReplaceAllString(keyBar(hints, theme.Dark), "")); w > 120 {
+		if w := ansi.StringWidth(plainText(keyBar(hints, theme.Dark))); w > 120 {
 			t.Errorf("the bar is %d columns wide: %v", w, hints)
 		}
 	}
@@ -2835,16 +3084,8 @@ func TestKeyBar(t *testing.T) {
 // ? shows the screen's keys in full over it, on either screen, and
 // any key puts them away.
 func TestKeys(t *testing.T) {
-	press := func(m model, k string) model {
-		key := tea.Key{Text: k, Code: []rune(k)[0]}
-		if k == "esc" {
-			key = tea.Key{Code: tea.KeyEscape}
-		}
-		next, _ := m.Update(tea.KeyPressMsg(key))
-		return next.(model)
-	}
 	m := model{screen: onProject, cur: project{Name: "d", Root: "/p"}, rows: []row{}, width: 80, height: 30}
-	if m = press(m, "?"); !m.helping {
+	if m, _ = press(t, m, "?"); !m.helping {
 		t.Fatal("? did not show the keys")
 	}
 	lines, f := m.draw()
@@ -2854,17 +3095,17 @@ func TestKeys(t *testing.T) {
 	if !reflect.DeepEqual(f.hints, backHints) {
 		t.Errorf("the bar under the keys = %v", f.hints)
 	}
-	if m = press(m, "esc"); m.helping {
+	if m, _ = press(t, m, "esc"); m.helping {
 		t.Error("esc did not put the keys away")
 	}
-	if m = press(m, "?"); !m.helping {
+	if m, _ = press(t, m, "?"); !m.helping {
 		t.Fatal("? did not show the keys again")
 	}
-	if m = press(m, "x"); m.helping || len(m.rows) != 0 {
+	if m, _ = press(t, m, "x"); m.helping || len(m.rows) != 0 {
 		t.Error("a key did not put the keys away, or did more")
 	}
 	m.screen = onProjects
-	if m = press(m, "?"); !m.helping {
+	if m, _ = press(t, m, "?"); !m.helping {
 		t.Fatal("? did not show the keys on the projects screen")
 	}
 	if lines, _ := m.draw(); !strings.Contains(strings.Join(lines, "\n"), "stops everything in it") {
@@ -2896,45 +3137,41 @@ func TestReadEmpty(t *testing.T) {
 // conversations at rest with a find line, and any other key puts the
 // verb away and says what it waited for.
 func TestVerbWaits(t *testing.T) {
-	press := func(m model, k string) model {
-		key := tea.Key{Text: k, Code: []rune(k)[0]}
-		if k == "esc" {
-			key = tea.Key{Code: tea.KeyEscape}
-		}
-		next, _ := m.Update(tea.KeyPressMsg(key))
-		return next.(model)
-	}
 	m := model{screen: onProject, cur: project{Name: "d", Root: "/p"}, rows: []row{{pane: &pane{ID: "%1", Name: "web"}}}}
 	m.rest = []row{{conv: &conversation{ID: "a", Title: "Grammar work"}}, {conv: &conversation{ID: "b", Title: "Look rebuild"}}}
-	if m = press(m, "r"); m.verb != "r" {
+	if m, _ = press(t, m, "r"); m.verb != "r" {
 		t.Fatalf("r did not wait: verb %q", m.verb)
 	}
-	if m = press(m, "x"); m.verb != "" || m.note == "" || m.listing {
+	if m, _ = press(t, m, "x"); m.verb != "" || m.note == "" || m.listing {
 		t.Errorf("x after r: verb %q, note %q, listing %v", m.verb, m.note, m.listing)
 	}
-	if m = press(m, "x"); m.verb != "x" {
+	if m, _ = press(t, m, "x"); m.verb != "x" {
 		t.Fatalf("x did not wait: verb %q", m.verb)
 	}
-	if m = press(m, "q"); m.verb != "" || !strings.Contains(m.note, "s, the stack") {
+	if m, _ = press(t, m, "q"); m.verb != "" || !strings.Contains(m.note, "s, the stack") {
 		t.Errorf("q after x: verb %q, note %q", m.verb, m.note)
 	}
-	if m = press(press(m, "x"), "t"); m.verb != "" || !strings.Contains(m.note, "the checks") {
+	m, _ = press(t, m, "x")
+	if m, _ = press(t, m, "t"); m.verb != "" || !strings.Contains(m.note, "the checks") {
 		t.Errorf("xt with no checks: verb %q, note %q", m.verb, m.note)
 	}
-	if m = press(press(m, "a"), "f"); m.verb != "" || m.note != "nothing failed" {
+	m, _ = press(t, m, "a")
+	if m, _ = press(t, m, "f"); m.verb != "" || m.note != "nothing failed" {
 		t.Errorf("af with nothing failed: verb %q, note %q", m.verb, m.note)
 	}
-	if m = press(press(m, "r"), "f"); m.verb != "" || !strings.Contains(m.note, "what failed") {
+	m, _ = press(t, m, "r")
+	if m, _ = press(t, m, "f"); m.verb != "" || !strings.Contains(m.note, "what failed") {
 		t.Errorf("rf with nothing failed: verb %q, note %q", m.verb, m.note)
 	}
-	m = press(press(m, "r"), "c")
+	m, _ = press(t, m, "r")
+	m, _ = press(t, m, "c")
 	if !m.listing || m.verb != "" {
 		t.Fatalf("rc did not list: listing %v, verb %q", m.listing, m.verb)
 	}
-	if m = press(m, "l"); len(m.shownRest()) != 1 || m.shownRest()[0].conv.ID != "b" {
+	if m, _ = press(t, m, "l"); len(m.shownRest()) != 1 || m.shownRest()[0].conv.ID != "b" {
 		t.Errorf("typing l finds %d", len(m.shownRest()))
 	}
-	if m = press(m, "esc"); m.listing || m.screen != onProject {
+	if m, _ = press(t, m, "esc"); m.listing || m.screen != onProject {
 		t.Error("esc did not put the list away")
 	}
 }
@@ -2996,10 +3233,10 @@ func TestItems(t *testing.T) {
 }
 
 // plainLines is a screen as drawn, without its colors.
-func plainLines(plain *regexp.Regexp, m model) []string {
+func plainLines(m model) []string {
 	lines, _ := m.draw()
 	for i := range lines {
-		lines[i] = plain.ReplaceAllString(lines[i], "")
+		lines[i] = plainText(lines[i])
 	}
 	return lines
 }
@@ -3009,7 +3246,6 @@ func plainLines(plain *regexp.Regexp, m model) []string {
 // many rows it has, the open one marked in the margin. Where the strip
 // would leave no room for a row, the two flow as one list.
 func TestStripStandsStill(t *testing.T) {
-	plain := regexp.MustCompile("\x1b\\[[0-9;]*m")
 	ps := []project{{Name: "a", Root: "/a", Running: 3}, {Name: "b", Root: "/b", Running: 1}, {Name: "c", Root: "/c", Running: 1}}
 	screen := func(cur project, rows int) []string {
 		m := model{screen: onProject, cur: cur, projects: ps, home: "/home", width: 50, height: 20}
@@ -3017,11 +3253,7 @@ func TestStripStandsStill(t *testing.T) {
 			m.rows = append(m.rows, row{pane: &pane{ID: "%" + strconv.Itoa(i), Name: "p" + strconv.Itoa(i), Dir: cur.Root}, tree: cur.Root})
 		}
 		inner, _ := m.inner()
-		lines, _ := inner.draw()
-		for i := range lines {
-			lines[i] = plain.ReplaceAllString(lines[i], "")
-		}
-		return lines
+		return plainLines(inner)
 	}
 	// The strip's lines, under the head that names the open project.
 	lineOf := func(lines []string, word string) int {
@@ -3057,7 +3289,7 @@ func TestStripStandsStill(t *testing.T) {
 	// line carries the cursor while they are read.
 	reading := model{screen: onProject, cur: ps[0], projects: ps, home: "/home", width: 50, height: 20}
 	inner, _ := reading.inner()
-	for _, l := range plainLines(plain, inner) {
+	for _, l := range plainLines(inner) {
 		if strings.HasPrefix(l, "▌") {
 			t.Errorf("the cursor stands on a line while the rows are read: %q", l)
 		}
@@ -3082,7 +3314,7 @@ func TestStripStandsStill(t *testing.T) {
 	m.cursor = len(m.items()) - 1
 	inner, _ = m.inner()
 	lines, _ := inner.draw()
-	if last := plain.ReplaceAllString(lines[len(lines)-1], ""); !strings.Contains(last, " c ") {
+	if last := plainText(lines[len(lines)-1]); !strings.Contains(last, " c ") {
 		t.Errorf("the window does not end on the cursor's line: %q", last)
 	}
 }
@@ -3565,19 +3797,8 @@ func TestSettings(t *testing.T) {
 	if err := theme.WriteMode(srv.Socket, theme.Mode{Dark: true, Theme: "conn"}); err != nil {
 		t.Fatal(err)
 	}
-	press := func(m model, k string) (model, tea.Cmd) {
-		key := tea.Key{Text: k, Code: []rune(k)[0]}
-		switch k {
-		case "esc":
-			key = tea.Key{Code: tea.KeyEscape}
-		case "enter":
-			key = tea.Key{Code: tea.KeyEnter}
-		}
-		next, cmd := m.Update(tea.KeyPressMsg(key))
-		return next.(model), cmd
-	}
 	m := model{srv: srv, home: home, own: panel, g: theme.Dark, screen: onProject, cur: project{Name: "d", Root: "/p"}, rows: []row{}, width: 80, height: 30}
-	if m, _ = press(m, ","); !m.settings {
+	if m, _ = press(t, m, ","); !m.settings {
 		t.Fatal(", did not show the settings")
 	}
 	lines, f := m.draw()
@@ -3595,9 +3816,9 @@ func TestSettings(t *testing.T) {
 	}
 
 	// skelly is the third theme.
-	m, _ = press(m, "j")
-	m, _ = press(m, "j")
-	m, cmd := press(m, "enter")
+	m, _ = press(t, m, "j")
+	m, _ = press(t, m, "j")
+	m, cmd := press(t, m, "enter")
 	if cmd == nil {
 		t.Fatal("enter on skelly did nothing")
 	}
@@ -3620,9 +3841,9 @@ func TestSettings(t *testing.T) {
 	}
 
 	// light is the row before the last.
-	m, _ = press(m, "G")
-	m, _ = press(m, "k")
-	m, cmd = press(m, "enter")
+	m, _ = press(t, m, "G")
+	m, _ = press(t, m, "k")
+	m, cmd = press(t, m, "enter")
 	next, _ = m.Update(cmd())
 	if m = next.(model); m.g != skelly.Light {
 		t.Errorf("light did not put the panel on skelly's light: %s", m.g.Accent)
@@ -3632,8 +3853,8 @@ func TestSettings(t *testing.T) {
 	// the row the system has it on says now. Kept as system.
 	systemDark = func() (bool, bool) { return true, true }
 	t.Cleanup(func() { systemDark = theme.SystemDark })
-	m, _ = press(m, "G")
-	m, cmd = press(m, "enter")
+	m, _ = press(t, m, "G")
+	m, cmd = press(t, m, "enter")
 	next, _ = m.Update(cmd())
 	if m = next.(model); m.g != skelly.Dark {
 		t.Errorf("system on a dark system did not put the panel on skelly's dark: %s", m.g.Accent)
@@ -3680,19 +3901,19 @@ func TestSettings(t *testing.T) {
 	if msg := m.followSystem()(); msg != nil {
 		t.Errorf("following a light system on light did something: %v", msg)
 	}
-	if m, _ = press(m, "esc"); m.settings {
+	if m, _ = press(t, m, "esc"); m.settings {
 		t.Error("esc did not put the settings away")
 	}
 
 	// On the projects screen , opens them too, unless it is typed into
 	// a find.
 	m.screen = onProjects
-	if m, _ = press(m, ","); !m.settings {
+	if m, _ = press(t, m, ","); !m.settings {
 		t.Error(", did not show the settings on the projects screen")
 	}
 	m.settings = false
 	m.box.SetValue("a")
-	if m, _ = press(m, ","); m.settings || m.box.Value() != "a," {
+	if m, _ = press(t, m, ","); m.settings || m.box.Value() != "a," {
 		t.Errorf("a , typed into a find opened the settings: %q", m.box.Value())
 	}
 }
@@ -3726,12 +3947,11 @@ func TestTheTitleIsTheShimmer(t *testing.T) {
 // on the projects screen it opens the project. A click on the head, a
 // label or the air is nothing.
 func TestClick(t *testing.T) {
-	plain := regexp.MustCompile("\x1b\\[[0-9;]*m")
 	lineOf := func(m model, word string) int {
 		inner, _ := m.inner()
 		lines, _ := inner.draw()
 		for i, l := range lines {
-			if strings.Contains(plain.ReplaceAllString(l, ""), word) {
+			if strings.Contains(plainText(l), word) {
 				return i
 			}
 		}
@@ -3769,7 +3989,7 @@ func TestClick(t *testing.T) {
 	if inner, _ := m.inner(); true {
 		lines, _ := inner.draw()
 		for i := lineOf(m, "projects"); i < len(lines); i++ {
-			if strings.Contains(plain.ReplaceAllString(lines[i], ""), " d ") {
+			if strings.Contains(plainText(lines[i]), " d ") {
 				own = i
 				break
 			}
@@ -3817,21 +4037,10 @@ func TestClick(t *testing.T) {
 // says so, and which process it is and where; a port nobody holds says
 // that. What holds what comes with the read, as the machine's processes.
 func TestFindAPort(t *testing.T) {
-	shots := os.Getenv("SHOTS")
-	if shots != "" {
+	shots := newShots(t, theme.Dark, 0)
+	if shots.on() {
 		wear(theme.Dark)
 		t.Cleanup(undress)
-	}
-	shoot := func(name string, m model) {
-		if shots == "" {
-			return
-		}
-		g := theme.Dark
-		ground := fmt.Sprintf("\x1b]10;%s\x1b\\\x1b]11;%s\x1b\\\x1b[2J\x1b[H", theme.Hex(g.Ink), g.Surface)
-		screen := strings.ReplaceAll(m.View().Content, "\n", "\x1b[0m\r\n")
-		if err := os.WriteFile(filepath.Join(shots, name), []byte(ground+screen+"\x1b[0m"), 0o644); err != nil {
-			t.Error(err)
-		}
 	}
 	k := newKnown()
 	k.root["/home/web"], k.root["/home/api"], k.root["/home/scratch"] = "/home/web", "/home/api", ""
@@ -3866,24 +4075,16 @@ func TestFindAPort(t *testing.T) {
 		}
 		return lines
 	}
-	saying := func(lines []string, s string) int {
-		for i, l := range lines {
-			if strings.Contains(l, s) {
-				return i
-			}
-		}
-		return -1
-	}
 
 	// :3000 narrows the list to web, its holder where its counts were.
 	m := typing(fresh(), ":3000")
-	shoot("port-held-120x36.ans", m)
+	shots.view("port-held-120x36.ans", m)
 	lines := screen(m)
-	at := saying(lines, "dev :3000")
+	at := lineSaying(lines, "dev :3000")
 	if at < 0 || !strings.Contains(lines[at], "web") {
 		t.Fatalf(":3000 does not show web held by dev :3000:\n%s", strings.Join(lines, "\n"))
 	}
-	if saying(lines, "api") >= 0 || saying(lines, "notes") >= 0 || strings.Contains(lines[at], "running") || strings.Contains(lines[at], "waiting") {
+	if lineSaying(lines, "api") >= 0 || lineSaying(lines, "notes") >= 0 || strings.Contains(lines[at], "running") || strings.Contains(lines[at], "waiting") {
 		t.Errorf(":3000 shows more than web holding it:\n%s", strings.Join(lines, "\n"))
 	}
 
@@ -3899,7 +4100,7 @@ func TestFindAPort(t *testing.T) {
 	}
 	next, _ = m.Update(read{root: "/home/web", projects: ps, procs: procs, rows: rows})
 	m = next.(model)
-	shoot("port-opened-120x36.ans", m)
+	shots.view("port-opened-120x36.ans", m)
 	if r, ok := m.under(); !ok || r.pane == nil || r.pane.ID != "%3" || m.wanted() != "%3" {
 		t.Errorf("web opened with the cursor on %s and %q in the workspace, want dev's %%3", m.itemKey(m.items()[m.cursor]), m.wanted())
 	}
@@ -3907,9 +4108,9 @@ func TestFindAPort(t *testing.T) {
 	// :8000 is held outside every project: says so, and under it which
 	// process and where it runs.
 	m = typing(fresh(), ":8000")
-	shoot("port-outside-120x36.ans", m)
+	shots.view("port-outside-120x36.ans", m)
 	lines = screen(m)
-	if at = saying(lines, "python3 holds :8000, outside any project"); at < 0 || at+1 >= len(lines) {
+	if at = lineSaying(lines, "python3 holds :8000, outside any project"); at < 0 || at+1 >= len(lines) {
 		t.Fatalf(":8000 does not say python3 holds it outside any project:\n%s", strings.Join(lines, "\n"))
 	}
 	under := lines[at+1]
@@ -3920,8 +4121,8 @@ func TestFindAPort(t *testing.T) {
 
 	// :4000 is held by nothing.
 	m = typing(fresh(), ":4000")
-	shoot("port-free-120x36.ans", m)
-	if lines = screen(m); saying(lines, "nothing holds :4000") < 0 {
+	shots.view("port-free-120x36.ans", m)
+	if lines = screen(m); lineSaying(lines, "nothing holds :4000") < 0 {
 		t.Errorf(":4000 does not say nothing holds it:\n%s", strings.Join(lines, "\n"))
 	}
 }
@@ -3934,51 +4135,16 @@ func TestFindAPort(t *testing.T) {
 // up. The conversations are read off their transcripts, as conn reads
 // them.
 func TestPickUpByWhatWasSaid(t *testing.T) {
-	bin, err := exec.LookPath("tmux")
-	if err != nil {
-		t.Skip("no tmux")
-	}
-	shots := os.Getenv("SHOTS")
-	wear(theme.Dark)
-	t.Cleanup(undress)
-	shoot := func(name string, m model) {
-		if shots == "" {
-			return
-		}
-		g := theme.Dark
-		ground := fmt.Sprintf("\x1b]10;%s\x1b\\\x1b]11;%s\x1b\\\x1b[2J\x1b[H", theme.Hex(g.Ink), g.Surface)
-		screen := strings.ReplaceAll(m.View().Content, "\n", "\x1b[0m\r\n")
-		if err := os.WriteFile(filepath.Join(shots, name), []byte(ground+screen+"\x1b[0m"), 0o644); err != nil {
-			t.Error(err)
-		}
-	}
+	shots, _ := darkShots(t, 0)
 
-	scratch, err := os.MkdirTemp("/tmp", "cs-")
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() { _ = os.RemoveAll(scratch) })
-	// git and tmux say where things are with /tmp's symlink resolved.
-	scratch, _ = filepath.EvalSymlinks(scratch)
-	t.Setenv("HOME", scratch)
-	t.Setenv("CLAUDE_CONFIG_DIR", filepath.Join(scratch, ".claude"))
+	bin, scratch := tmuxScratch(t)
 	// claude, as conn starts it to pick a conversation back up, waits.
-	write(t, filepath.Join(scratch, "bin", "claude"), "#!/bin/sh\nexec sleep 1000\n")
-	if err := os.Chmod(filepath.Join(scratch, "bin", "claude"), 0o755); err != nil {
-		t.Fatal(err)
-	}
-	t.Setenv("PATH", filepath.Join(scratch, "bin")+":"+os.Getenv("PATH"))
-	web := filepath.Join(scratch, "web")
-	if err := os.MkdirAll(web, 0o755); err != nil {
-		t.Fatal(err)
-	}
-	git(t, web, "init", "-q")
-	git(t, web, "commit", "-q", "--allow-empty", "-m", "first")
+	standInClaude(t, scratch)
+	web := newRepo(t, filepath.Join(scratch, "web"))
 
 	// Four conversations at rest, newest first: one says the words, one
 	// is titled with them, one says them in Claude's reply, and one has
 	// nothing to do with them.
-	encoded := regexp.MustCompile("[^A-Za-z0-9]").ReplaceAllString(web, "-")
 	user := func(s string) string {
 		b, _ := json.Marshal(s)
 		return `{"type":"user","cwd":` + strconv.Quote(web) + `,"message":{"role":"user","content":` + string(b) + `}}`
@@ -4011,7 +4177,7 @@ func TestPickUpByWhatWasSaid(t *testing.T) {
 	}
 	now := time.Now()
 	for i, c := range convs {
-		path := write(t, filepath.Join(scratch, ".claude", "projects", encoded, c.id+".jsonl"),
+		path := write(t, transcriptPath(scratch, web, c.id),
 			strings.Join(append(c.lines, titled(c.title)), "\n")+"\n")
 		when := now.Add(-time.Duration(i+1) * time.Hour)
 		if err := os.Chtimes(path, when, when); err != nil {
@@ -4019,52 +4185,20 @@ func TestPickUpByWhatWasSaid(t *testing.T) {
 		}
 	}
 
-	srv := &tmux.Server{Tmux: bin, Socket: filepath.Join(scratch, "s")}
-	t.Cleanup(func() { _ = srv.Down() })
-	if _, err := srv.Run("-f", "/dev/null", "new-session", "-d", "-s", sessionName, "sleep 1000"); err != nil {
-		t.Fatal(err)
-	}
+	srv := plainServer(t, bin, scratch)
 
 	// The scratch is temporary, which is no project; here it is one.
-	k := newKnown()
-	k.root[web] = web
-	m := model{srv: srv, screen: onProject, cur: project{Name: "web", Root: web}, home: scratch, width: 120, height: 36, known: k}
+	k := knownRoots(web)
+	m := modelOnProject(srv, scratch, web, k)
 	next, _ := m.Update(m.read()())
 	m = next.(model)
 	if len(m.rest) != 4 {
 		t.Fatalf("the read found %d conversations at rest, want 4", len(m.rest))
 	}
 
-	// settle runs what a key asks done, as the program would, and hands
-	// back what it answers; what takes longer than a moment is a tick.
-	var settle func(m model, cmd tea.Cmd, depth int) model
-	settle = func(m model, cmd tea.Cmd, depth int) model {
-		if cmd == nil || depth > 4 {
-			return m
-		}
-		got := make(chan tea.Msg, 1)
-		go func() { got <- cmd() }()
-		var msg tea.Msg
-		select {
-		case msg = <-got:
-		case <-time.After(2 * time.Second):
-			return m
-		}
-		if batch, ok := msg.(tea.BatchMsg); ok {
-			for _, c := range batch {
-				m = settle(m, c, depth+1)
-			}
-			return m
-		}
-		if msg == nil {
-			return m
-		}
-		next, cmd := m.Update(msg)
-		return settle(next.(model), cmd, depth+1)
-	}
 	press := func(m model, key tea.Key) model {
 		next, cmd := m.Update(tea.KeyPressMsg(key))
-		return settle(next.(model), cmd, 0)
+		return pump(next.(model), cmd, 4)
 	}
 	typing := func(m model, s string) model {
 		for _, r := range s {
@@ -4077,7 +4211,7 @@ func TestPickUpByWhatWasSaid(t *testing.T) {
 		t.Fatal("rc did not list the conversations at rest")
 	}
 	m = typing(m, "auth redirect")
-	shoot("rc-found-120x36.ans", m)
+	shots.view("rc-found-120x36.ans", m)
 
 	drawn, _ := m.draw()
 	lines := make([]string, len(drawn))
@@ -4085,14 +4219,7 @@ func TestPickUpByWhatWasSaid(t *testing.T) {
 		lines[i] = strings.TrimRight(plainText(drawn[i]), " ")
 	}
 	screen := strings.Join(lines, "\n")
-	saying := func(s string) int {
-		for i, l := range lines {
-			if strings.Contains(l, s) {
-				return i
-			}
-		}
-		return -1
-	}
+	saying := func(s string) int { return lineSaying(lines, s) }
 	if !strings.Contains(screen, "3 conversations") {
 		t.Errorf("the count does not say 3 conversations found:\n%s", screen)
 	}
@@ -4121,7 +4248,7 @@ func TestPickUpByWhatWasSaid(t *testing.T) {
 		for _, w := range []string{"auth", "redirect"} {
 			raw := drawn[at+1]
 			i := strings.Index(raw, w)
-			sgr := regexp.MustCompile("\x1b\\[([0-9;]*)m").FindAllStringSubmatch(raw[:max(i, 0)], -1)
+			sgr := sgrStyle.FindAllStringSubmatch(raw[:max(i, 0)], -1)
 			bold := len(sgr) > 0 && regexp.MustCompile(`(^|;)1(;|$)`).MatchString(sgr[len(sgr)-1][1])
 			if i < 0 || !bold {
 				t.Errorf("under %q, %q is not in bold: %q", c.title, w, raw)
@@ -4137,7 +4264,7 @@ func TestPickUpByWhatWasSaid(t *testing.T) {
 	// enter picks that one back up.
 	m = press(m, tea.Key{Code: tea.KeyDown})
 	m = press(m, tea.Key{Code: tea.KeyDown})
-	shoot("rc-chosen-120x36.ans", m)
+	shots.view("rc-chosen-120x36.ans", m)
 	next, _ = m.Update(tea.KeyPressMsg(tea.Key{Code: tea.KeyEnter}))
 	m = next.(model)
 	if m.listing || m.in == "" {
@@ -4164,39 +4291,15 @@ func TestPickUpByWhatWasSaid(t *testing.T) {
 // read is the machine, as the panel reads it: tmux's panes, Claude
 // Code's instance files and transcripts.
 func TestTheProjectsScreenNamesWhoWaits(t *testing.T) {
-	bin, err := exec.LookPath("tmux")
-	if err != nil {
-		t.Skip("no tmux")
-	}
-	shots := os.Getenv("SHOTS")
-	wear(theme.Dark)
-	t.Cleanup(undress)
-	g := theme.Dark
+	shots, g := darkShots(t, 0)
 
-	scratch, err := os.MkdirTemp("/tmp", "cs-")
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() { _ = os.RemoveAll(scratch) })
-	// git and tmux say where things are with /tmp's symlink resolved.
-	scratch, _ = filepath.EvalSymlinks(scratch)
-	t.Setenv("HOME", scratch)
-	t.Setenv("CLAUDE_CONFIG_DIR", filepath.Join(scratch, ".claude"))
-	repo := func(name string) string {
-		dir := filepath.Join(scratch, name)
-		if err := os.MkdirAll(dir, 0o755); err != nil {
-			t.Fatal(err)
-		}
-		git(t, dir, "init", "-q")
-		git(t, dir, "commit", "-q", "--allow-empty", "-m", "first")
-		return dir
-	}
+	bin, scratch := tmuxScratch(t)
+	repo := func(name string) string { return newRepo(t, filepath.Join(scratch, name)) }
 	web, api := repo("web"), repo("api")
 	// A conversation in each, its title the last thing its transcript
 	// says; web's is the one that will wait, api's has an hour gone.
 	transcript := func(dir, id, title string, when time.Time) {
-		encoded := regexp.MustCompile("[^A-Za-z0-9]").ReplaceAllString(dir, "-")
-		path := write(t, filepath.Join(scratch, ".claude", "projects", encoded, id+".jsonl"),
+		path := write(t, transcriptPath(scratch, dir, id),
 			`{"type":"user","cwd":`+strconv.Quote(dir)+`,"message":{"role":"user","content":"hello"}}`+"\n"+
 				`{"type":"ai-title","aiTitle":`+strconv.Quote(title)+`}`+"\n")
 		if err := os.Chtimes(path, when, when); err != nil {
@@ -4209,67 +4312,21 @@ func TestTheProjectsScreenNamesWhoWaits(t *testing.T) {
 	transcript(api, "bbbbbbbb-0000-0000-0000-000000000002", "Index the orders table", time.Now().Add(-time.Hour))
 
 	// The title says "·", which tmux writes only to a UTF-8 terminal.
-	t.Setenv("LC_ALL", "C.UTF-8")
-	path := write(t, filepath.Join(scratch, "tmux.conf"), conf(g))
-	srv := &tmux.Server{Tmux: bin, Socket: filepath.Join(scratch, "s")}
-	t.Cleanup(func() { _ = srv.Down() })
-	if _, err := srv.Run("-f", path, "new-session", "-d", "-s", sessionName, "-x", "120", "-y", "36", "-c", scratch, "sleep 1000"); err != nil {
-		t.Fatal(err)
-	}
+	srv := dressedServer(t, bin, scratch, g)
 	// The conversation runs in a pane conn holds in web: a sleep, its
 	// instance file saying what Claude Code would.
-	id, err := openWindow(srv, "web", web, "sleep 1000", s1)
-	if err != nil {
-		t.Fatal(err)
-	}
-	pid, err := srv.Run("display", "-p", "-t", id, "#{pane_pid}")
-	if err != nil {
-		t.Fatal(err)
-	}
-	instance := filepath.Join(scratch, ".claude", "sessions", strings.TrimSpace(pid)+".json")
-	status := func(s string) {
-		write(t, instance, `{"sessionId":"`+s1+`","status":"`+s+`","cwd":"`+web+`"}`)
-	}
+	id, status := conversationIn(t, srv, scratch, "web", web, s1)
 
 	// The scratch is temporary, which is no project; here both are.
-	k := newKnown()
-	k.root[web], k.root[api] = web, api
-	fresh := func() model {
-		m := model{srv: srv, screen: onProjects, home: scratch, conn: "conn", known: k, g: g, width: 120, height: 36}
-		next, _ := m.Update(m.read()())
-		return next.(model)
-	}
-	screen := func(m model) (raw, lines []string) {
-		raw, _ = m.draw()
-		lines = make([]string, len(raw))
-		for i := range raw {
-			lines[i] = strings.TrimRight(plainText(raw[i]), " ")
-		}
-		return raw, lines
-	}
-	saying := func(lines []string, s string) int {
-		for i, l := range lines {
-			if strings.Contains(l, s) {
-				return i
-			}
-		}
-		return -1
-	}
-	var said strings.Builder
+	k := knownRoots(web, api)
+	fresh := func() model { return readProjects(srv, scratch, g, k) }
 	frame := func(name string, m model) {
-		if shots == "" {
+		if !shots.on() {
 			return
 		}
 		title, _ := srv.Run("display", "-p", "-t", sessionName, "#{T:set-titles-string} #{window_bell_flag}")
-		fmt.Fprintf(&said, "%s: %s\n", name, strings.TrimSpace(title))
-		if err := os.WriteFile(filepath.Join(shots, "tab-title-and-bell.txt"), []byte(said.String()), 0o644); err != nil {
-			t.Error(err)
-		}
-		ground := fmt.Sprintf("\x1b]10;%s\x1b\\\x1b]11;%s\x1b\\\x1b[2J\x1b[H", theme.Hex(g.Ink), g.Surface)
-		content := strings.ReplaceAll(m.View().Content, "\n", "\x1b[0m\r\n")
-		if err := os.WriteFile(filepath.Join(shots, name), []byte(ground+content+"\x1b[0m"), 0o644); err != nil {
-			t.Error(err)
-		}
+		shots.note("tab-title-and-bell.txt", fmt.Sprintf("%s: %s", name, strings.TrimSpace(title)))
+		shots.view(name, m)
 	}
 	key := func(m model, k tea.Key) model {
 		next, _ := m.Update(tea.KeyPressMsg(k))
@@ -4280,7 +4337,7 @@ func TestTheProjectsScreenNamesWhoWaits(t *testing.T) {
 	status("idle")
 	m := fresh()
 	frame("idle-120x36.ans", m)
-	if _, lines := screen(m); saying(lines, waits) >= 0 {
+	if _, lines := drawnScreen(m); lineSaying(lines, waits) >= 0 {
 		t.Errorf("with nothing waiting, the projects screen names %q:\n%s", waits, strings.Join(lines, "\n"))
 	}
 
@@ -4288,9 +4345,9 @@ func TestTheProjectsScreenNamesWhoWaits(t *testing.T) {
 	status("waiting")
 	m = fresh()
 	frame("waiting-120x36.ans", m)
-	raw, lines := screen(m)
+	raw, lines := drawnScreen(m)
 	all := strings.Join(lines, "\n")
-	at := saying(lines, "1 waiting")
+	at := lineSaying(lines, "1 waiting")
 	if at < 0 || !strings.Contains(lines[at], "web") {
 		t.Fatalf("web's line does not say 1 waiting:\n%s", all)
 	}
@@ -4333,7 +4390,7 @@ func TestTheProjectsScreenNamesWhoWaits(t *testing.T) {
 	status("idle")
 	m = fresh()
 	frame("answered-120x36.ans", m)
-	if _, lines := screen(m); saying(lines, waits) >= 0 || saying(lines, "waiting") >= 0 {
+	if _, lines := drawnScreen(m); lineSaying(lines, waits) >= 0 || lineSaying(lines, "waiting") >= 0 {
 		t.Errorf("answered, the projects screen still says it waits:\n%s", strings.Join(lines, "\n"))
 	}
 }
@@ -4349,85 +4406,28 @@ func TestTheProjectsScreenNamesWhoWaits(t *testing.T) {
 // last called with no result yet; the rest is the machine, as the
 // panel reads it: tmux's panes and Claude Code's instance files.
 func TestAWaitingConversationSaysWhatItAsks(t *testing.T) {
-	bin, err := exec.LookPath("tmux")
-	if err != nil {
-		t.Skip("no tmux")
-	}
-	shots := os.Getenv("SHOTS")
-	wear(theme.Dark)
-	t.Cleanup(undress)
-	g := theme.Dark
+	shots, g := darkShots(t, 6)
 
-	scratch, err := os.MkdirTemp("/tmp", "cs-")
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() { _ = os.RemoveAll(scratch) })
-	scratch, _ = filepath.EvalSymlinks(scratch)
-	t.Setenv("HOME", scratch)
-	t.Setenv("CLAUDE_CONFIG_DIR", filepath.Join(scratch, ".claude"))
-	web := filepath.Join(scratch, "web")
-	if err := os.MkdirAll(web, 0o755); err != nil {
-		t.Fatal(err)
-	}
-	git(t, web, "init", "-q")
-	git(t, web, "commit", "-q", "--allow-empty", "-m", "first")
+	bin, scratch := tmuxScratch(t)
+	web := newRepo(t, filepath.Join(scratch, "web"))
 
 	// The conversation's transcript: its title, and a turn had.
 	const title = "Tidy the build"
 	s1 := "aaaaaaaa-0000-0000-0000-000000000001"
-	encoded := regexp.MustCompile("[^A-Za-z0-9]").ReplaceAllString(web, "-")
-	transcript := write(t, filepath.Join(scratch, ".claude", "projects", encoded, s1+".jsonl"),
+	transcript := write(t, transcriptPath(scratch, web, s1),
 		`{"type":"user","cwd":`+strconv.Quote(web)+`,"message":{"role":"user","content":"clean up the build"}}`+"\n"+
 			`{"type":"ai-title","aiTitle":`+strconv.Quote(title)+`}`+"\n"+
 			`{"type":"assistant","cwd":`+strconv.Quote(web)+`,"message":{"role":"assistant","content":[{"type":"text","text":"Looking at the build."}]}}`+"\n")
-	say := func(lines ...string) {
-		t.Helper()
-		f, err := os.OpenFile(transcript, os.O_APPEND|os.O_WRONLY, 0o600)
-		if err != nil {
-			t.Fatal(err)
-		}
-		defer func() { _ = f.Close() }()
-		for _, l := range lines {
-			if _, err := f.WriteString(l + "\n"); err != nil {
-				t.Fatal(err)
-			}
-		}
-	}
-	tool := func(id, name, input string) string {
-		return `{"type":"assistant","cwd":` + strconv.Quote(web) + `,"message":{"role":"assistant","content":[{"type":"tool_use","id":"` + id + `","name":"` + name + `","input":` + input + `}]}}`
-	}
-	result := func(id string) string {
-		return `{"type":"user","cwd":` + strconv.Quote(web) + `,"message":{"role":"user","content":[{"type":"tool_result","tool_use_id":"` + id + `","content":"ok"}]}}`
-	}
 
-	t.Setenv("LC_ALL", "C.UTF-8")
-	path := write(t, filepath.Join(scratch, "tmux.conf"), conf(g))
-	srv := &tmux.Server{Tmux: bin, Socket: filepath.Join(scratch, "s")}
-	t.Cleanup(func() { _ = srv.Down() })
-	if _, err := srv.Run("-f", path, "new-session", "-d", "-s", sessionName, "-x", "120", "-y", "36", "-c", scratch, "sleep 1000"); err != nil {
-		t.Fatal(err)
-	}
+	srv := dressedServer(t, bin, scratch, g)
 	// The conversation runs in a pane conn holds in web, and below it
 	// in the panel a dev server runs, a row for the line to push down.
-	id, err := openWindow(srv, "web", web, "sleep 1000", s1)
-	if err != nil {
-		t.Fatal(err)
-	}
-	pid, err := srv.Run("display", "-p", "-t", id, "#{pane_pid}")
-	if err != nil {
-		t.Fatal(err)
-	}
+	_, status := conversationIn(t, srv, scratch, "web", web, s1)
 	if _, err := startNamed(srv, "dev", "exec sleep 1000", web, web, roleStack); err != nil {
 		t.Fatal(err)
 	}
-	instance := filepath.Join(scratch, ".claude", "sessions", strings.TrimSpace(pid)+".json")
-	status := func(s string) {
-		write(t, instance, `{"sessionId":"`+s1+`","status":"`+s+`","cwd":"`+web+`"}`)
-	}
 
-	k := newKnown()
-	k.root[web] = web
+	k := knownRoots(web)
 	// The panel open on web, the cursor on the conversation; and the
 	// projects screen, as each reads the machine now.
 	panel := func() model {
@@ -4442,67 +4442,28 @@ func TestAWaitingConversationSaysWhatItAsks(t *testing.T) {
 		}
 		return m
 	}
-	projects := func() model {
-		m := model{srv: srv, screen: onProjects, home: scratch, conn: "conn", known: k, g: g, width: 120, height: 36}
-		next, _ := m.Update(m.read()())
-		return next.(model)
-	}
-	screen := func(m model) (raw, lines []string) {
-		raw, _ = m.draw()
-		lines = make([]string, len(raw))
-		for i := range raw {
-			lines[i] = strings.TrimRight(plainText(raw[i]), " ")
-		}
-		return raw, lines
-	}
-	saying := func(lines []string, s string) int {
-		for i, l := range lines {
-			if strings.Contains(l, s) {
-				return i
-			}
-		}
-		return -1
-	}
+	projects := func() model { return readProjects(srv, scratch, g, k) }
 	prefix := func(st lipgloss.Style) string { return strings.SplitN(st.Render("x"), "x", 2)[0] }
 	ground := prefix(lipgloss.NewStyle().Background(lipgloss.Color(g.Chosen)))
 	ground = ground[strings.LastIndex(ground, "48;"):]
 
-	var said strings.Builder
-	shot := 0
 	frame := func(name string, m model) {
-		if shots == "" {
+		if !shots.on() {
 			return
 		}
 		got, _ := srv.Run("display", "-p", "-t", sessionName, "#{T:set-titles-string} #{window_bell_flag}")
-		fmt.Fprintf(&said, "%s: %s\n", name, strings.TrimSpace(got))
-		if err := os.WriteFile(filepath.Join(shots, "tab-title-and-bell.txt"), []byte(said.String()), 0o644); err != nil {
-			t.Error(err)
-		}
-		if shot++; shot > 6 {
-			return
-		}
-		var b strings.Builder
-		fmt.Fprintf(&b, "\x1b]10;%s\x1b\\\x1b]11;%s\x1b\\\x1b[2J\x1b[H", theme.Hex(g.Ink), g.Surface)
-		for _, l := range strings.Split(m.View().Content, "\n") {
-			b.WriteString(l + "\x1b[0m" + strings.Repeat(" ", max(120-ansi.StringWidth(l), 0)) + "\r\n")
-		}
-		if m.screen == onProject {
-			b.WriteString(drawnStatus(t, srv))
-		}
-		if err := os.WriteFile(filepath.Join(shots, name), []byte(strings.TrimSuffix(b.String(), "\r\n")+"\x1b[0m"), 0o644); err != nil {
-			t.Error(err)
-		}
+		shots.note("tab-title-and-bell.txt", fmt.Sprintf("%s: %s", name, strings.TrimSpace(got)))
+		shots.panel(name, m, srv, false)
 	}
-	indent := func(s string) int { return ansi.StringWidth(s) - ansi.StringWidth(strings.TrimLeft(s, " ")) }
 
 	// asks checks the panel and the projects screen both say, under the
 	// conversation, the line want, and returns the panel's lines.
 	asks := func(what, want string) []string {
 		t.Helper()
 		m := panel()
-		raw, lines := screen(m)
+		raw, lines := drawnScreen(m)
 		all := strings.Join(lines, "\n")
-		at := saying(lines, title)
+		at := lineSaying(lines, title)
 		if at < 0 {
 			t.Fatalf("%s, the panel has no row for the conversation:\n%s", what, all)
 		}
@@ -4524,15 +4485,15 @@ func TestAWaitingConversationSaysWhatItAsks(t *testing.T) {
 		if m.items()[0].row >= 0 && m.rows[m.items()[0].row].conv != nil {
 			m.cursor = len(m.items()) - 1
 		}
-		raw, lines = screen(m)
-		if at := saying(lines, want); at < 0 || !strings.Contains(raw[at], prefix(gray)) {
+		raw, lines = drawnScreen(m)
+		if at := lineSaying(lines, want); at < 0 || !strings.Contains(raw[at], prefix(gray)) {
 			t.Errorf("%s, off the cursor the line saying %q is not gray: %q", what, want, raw[max(at, 0)])
 		}
 
 		// On the projects screen, under the conversation's line.
-		_, plines := screen(projects())
+		_, plines := drawnScreen(projects())
 		pall := strings.Join(plines, "\n")
-		at = saying(plines, "❝ "+title)
+		at = lineSaying(plines, "❝ "+title)
 		if at < 0 {
 			t.Fatalf("%s, the projects screen names no conversation waiting in web:\n%s", what, pall)
 		}
@@ -4546,7 +4507,7 @@ func TestAWaitingConversationSaysWhatItAsks(t *testing.T) {
 	quiet := func(what string, m model, lines []string) {
 		t.Helper()
 		for _, w := range []string{"wants to", "Which", "rm -rf"} {
-			if saying(lines, w) >= 0 {
+			if lineSaying(lines, w) >= 0 {
 				t.Errorf("%s, the %v screen still says %q:\n%s", what, m.screen, w, strings.Join(lines, "\n"))
 			}
 		}
@@ -4556,25 +4517,25 @@ func TestAWaitingConversationSaysWhatItAsks(t *testing.T) {
 	status("idle")
 	m := panel()
 	frame("idle-120x36.ans", m)
-	_, lines := screen(m)
+	_, lines := drawnScreen(m)
 	quiet("at rest", m, lines)
-	restDev := saying(lines, "dev")
+	restDev := lineSaying(lines, "dev")
 
 	// Stopped on a command, it wants to run it.
-	say(tool("toolu_1", "Bash", `{"command":"rm -rf dist","description":"Remove the old build"}`))
+	appendLines(t, transcript, toolUseLine(web, "toolu_1", "Bash", `{"command":"rm -rf dist","description":"Remove the old build"}`))
 	status("waiting")
 	waiting := asks("stopped on a command", "wants to run: rm -rf dist")
 	frame("waiting-120x36.ans", panel())
 	frame("waiting-projects-120x36.ans", projects())
-	if at := saying(waiting, title); saying(waiting, "dev") < at {
+	if at := lineSaying(waiting, title); lineSaying(waiting, "dev") < at {
 		t.Fatalf("the dev server's row is above the conversation's, nothing to push down:\n%s", strings.Join(waiting, "\n"))
 	}
-	waitDev := saying(waiting, "dev")
+	waitDev := lineSaying(waiting, "dev")
 
 	// Run, and stopped on an edit: the line says the file, from web.
-	say(result("toolu_1"), tool("toolu_2", "Edit", `{"file_path":`+strconv.Quote(filepath.Join(web, "app", "router.ts"))+`,"old_string":"a","new_string":"b"}`))
+	appendLines(t, transcript, toolResultLine(web, "toolu_1"), toolUseLine(web, "toolu_2", "Edit", `{"file_path":`+strconv.Quote(filepath.Join(web, "app", "router.ts"))+`,"old_string":"a","new_string":"b"}`))
 	lines = asks("stopped on an edit", "wants to edit: app/router.ts")
-	if saying(lines, "rm -rf") >= 0 {
+	if lineSaying(lines, "rm -rf") >= 0 {
 		t.Errorf("stopped on an edit, the panel still says the command:\n%s", strings.Join(lines, "\n"))
 	}
 	frame("edit-120x36.ans", panel())
@@ -4582,34 +4543,34 @@ func TestAWaitingConversationSaysWhatItAsks(t *testing.T) {
 	// Asked a question, the line is its first line, cut short on the
 	// panel with "…" two columns before the edge.
 	const question = "Which of the two login flows should the rate limit apply to first?"
-	say(result("toolu_2"), tool("toolu_3", "AskUserQuestion", `{"questions":[{"header":"Rate limit","question":`+strconv.Quote(question+"\nThe old one is still used by the mobile app.")+`,"multiSelect":false,"options":[{"label":"Both","description":"Both flows"},{"label":"New","description":"The new flow only"}]}]}`))
+	appendLines(t, transcript, toolResultLine(web, "toolu_2"), toolUseLine(web, "toolu_3", "AskUserQuestion", `{"questions":[{"header":"Rate limit","question":`+strconv.Quote(question+"\nThe old one is still used by the mobile app.")+`,"multiSelect":false,"options":[{"label":"Both","description":"Both flows"},{"label":"New","description":"The new flow only"}]}]}`))
 	lines = asks("asked a question", "Which of the two")
-	at := saying(lines, "Which of the two")
+	at := lineSaying(lines, "Which of the two")
 	if !strings.HasSuffix(lines[at], "…") || ansi.StringWidth(lines[at]) != panelWidth-2 {
 		t.Errorf("the question's line on the panel %q (%d columns) is not cut with … two columns before the edge at %d", lines[at], ansi.StringWidth(lines[at]), panelWidth)
 	}
 	if !strings.HasPrefix(question, strings.TrimSuffix(strings.TrimLeft(lines[at], " "), "…")) {
 		t.Errorf("the question's line on the panel %q is not the start of %q", lines[at], question)
 	}
-	if saying(lines, "mobile app") >= 0 {
+	if lineSaying(lines, "mobile app") >= 0 {
 		t.Errorf("the panel says more of the question than its first line:\n%s", strings.Join(lines, "\n"))
 	}
-	if _, plines := screen(projects()); saying(plines, question) < 0 {
+	if _, plines := drawnScreen(projects()); lineSaying(plines, question) < 0 {
 		t.Errorf("the projects screen, with the room, does not say the question's first line whole:\n%s", strings.Join(plines, "\n"))
 	}
 	frame("question-120x36.ans", panel())
 
 	// Answered, back at work: the line goes, and the rows below move up.
-	say(result("toolu_3"))
+	appendLines(t, transcript, toolResultLine(web, "toolu_3"))
 	status("busy")
 	m = panel()
-	_, lines = screen(m)
+	_, lines = drawnScreen(m)
 	quiet("answered", m, lines)
-	if got := saying(lines, "dev"); got != waitDev-1 || got != restDev {
+	if got := lineSaying(lines, "dev"); got != waitDev-1 || got != restDev {
 		t.Errorf("answered, the dev server's row is at line %d, want %d, back up where it was at rest:\n%s", got, waitDev-1, strings.Join(lines, "\n"))
 	}
 	pm := projects()
-	_, plines := screen(pm)
+	_, plines := drawnScreen(pm)
 	quiet("answered", pm, plines)
 	frame("answered-120x36.ans", m)
 }
@@ -4625,40 +4586,13 @@ func TestAWaitingConversationSaysWhatItAsks(t *testing.T) {
 // it away. What is read is the machine, as the panel reads it: tmux's
 // panes, and Claude Code's instance files.
 func TestATurnHandedBackWaits(t *testing.T) {
-	bin, err := exec.LookPath("tmux")
-	if err != nil {
-		t.Skip("no tmux")
-	}
-	script, err := exec.LookPath("script")
-	if err != nil {
-		t.Skip("no script to give a client a terminal")
-	}
-	shots := os.Getenv("SHOTS")
-	wear(theme.Dark)
-	t.Cleanup(undress)
-	g := theme.Dark
+	shots, g := darkShots(t, 6)
 
-	scratch, err := os.MkdirTemp("/tmp", "cs-")
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() { _ = os.RemoveAll(scratch) })
-	scratch, _ = filepath.EvalSymlinks(scratch)
-	t.Setenv("HOME", scratch)
-	t.Setenv("CLAUDE_CONFIG_DIR", filepath.Join(scratch, ".claude"))
-	repo := func(name string) string {
-		dir := filepath.Join(scratch, name)
-		if err := os.MkdirAll(dir, 0o755); err != nil {
-			t.Fatal(err)
-		}
-		git(t, dir, "init", "-q")
-		git(t, dir, "commit", "-q", "--allow-empty", "-m", "first")
-		return dir
-	}
+	bin, scratch := tmuxScratch(t)
+	repo := func(name string) string { return newRepo(t, filepath.Join(scratch, name)) }
 	web, api := repo("web"), repo("api")
 	transcript := func(dir, id, title string) {
-		encoded := regexp.MustCompile("[^A-Za-z0-9]").ReplaceAllString(dir, "-")
-		write(t, filepath.Join(scratch, ".claude", "projects", encoded, id+".jsonl"),
+		write(t, transcriptPath(scratch, dir, id),
 			`{"type":"user","cwd":`+strconv.Quote(dir)+`,"message":{"role":"user","content":"hello"}}`+"\n"+
 				`{"type":"ai-title","aiTitle":`+strconv.Quote(title)+`}`+"\n")
 	}
@@ -4668,205 +4602,42 @@ func TestATurnHandedBackWaits(t *testing.T) {
 	transcript(api, s2, asks)
 
 	// The title says "·", which tmux writes only to a UTF-8 terminal.
-	t.Setenv("LC_ALL", "C.UTF-8")
-	path := write(t, filepath.Join(scratch, "tmux.conf"), conf(g))
-	srv := &tmux.Server{Tmux: bin, Socket: filepath.Join(scratch, "s")}
-	t.Cleanup(func() { _ = srv.Down() })
-	out, err := srv.Run("-f", path, "new-session", "-d", "-s", sessionName, "-x", "120", "-y", "36", "-c", scratch, "-P", "-F", "#{window_id} #{pane_id}", "sleep 1000")
-	if err != nil {
-		t.Fatal(err)
-	}
 	// conn's window: the panel, and beside it the workspace tab shows
 	// a conversation in.
-	win, own, _ := strings.Cut(strings.TrimSpace(out), " ")
-	if _, err := srv.Do(tmux.SetPane(own, panelMark, "1")); err != nil {
-		t.Fatal(err)
-	}
-	ws := newWorkspace(srv, win, own, "/x")
-	ws.hold = "sleep 1000"
+	srv, ws, own := panelWindow(t, bin, scratch, g)
 
-	// A terminal's client, on a terminal that takes a title, its output
-	// what the terminal would be sent.
-	attach := bin + " -S " + srv.Socket + " attach -t " + sessionName
-	var cmd *exec.Cmd
-	if runtime.GOOS == "darwin" {
-		cmd = exec.Command(script, "-q", "/dev/null", "/bin/sh", "-c", attach)
-	} else {
-		cmd = exec.Command(script, "-qfec", attach, "/dev/null")
-	}
-	cmd.Env = append(os.Environ(), "TERM=xterm-256color", "TMUX=")
-	in, keepOpen, err := os.Pipe()
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() { _ = keepOpen.Close() })
-	cmd.Stdin = in
-	var tty safeBuffer
-	cmd.Stdout, cmd.Stderr = &tty, &tty
-	if err := cmd.Start(); err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() { _ = cmd.Process.Kill(); _ = cmd.Wait() })
-	for deadline := time.Now().Add(3 * time.Second); len(terminals(srv)) == 0; time.Sleep(50 * time.Millisecond) {
-		if time.Now().After(deadline) {
-			t.Fatalf("no client attached: %q", tty.String())
-		}
-	}
-	time.Sleep(300 * time.Millisecond)
-	osc := regexp.MustCompile("\x1b\\]([0-9]*)(?:;([^\x07\x1b]*))?(?:\x07|\x1b\\\\)")
-	title := func() string {
-		got := ""
-		for _, m := range osc.FindAllStringSubmatch(tty.String(), -1) {
-			if m[1] == "0" || m[1] == "2" {
-				got = m[2]
-			}
-		}
-		return got
-	}
-	bells := func() int {
-		return strings.Count(osc.ReplaceAllString(tty.String(), ""), "\a")
-	}
+	terminal := attachTerminal(t, bin, srv)
+	title, bells := terminal.title, terminal.bells
 
 	// A conversation in each, in a pane conn holds: a sleep, its
 	// instance file saying what Claude Code would. In web a dev server
 	// runs too, a row for the cursor to rest on.
-	conversation := func(name, dir, session string) (string, func(string)) {
-		id, err := openWindow(srv, name, dir, "sleep 1000", session)
-		if err != nil {
-			t.Fatal(err)
-		}
-		pid, err := srv.Run("display", "-p", "-t", id, "#{pane_pid}")
-		if err != nil {
-			t.Fatal(err)
-		}
-		instance := filepath.Join(scratch, ".claude", "sessions", strings.TrimSpace(pid)+".json")
-		return id, func(s string) {
-			write(t, instance, `{"sessionId":"`+session+`","status":"`+s+`","cwd":"`+dir+`"}`)
-		}
-	}
-	webPane, webStatus := conversation("web", web, s1)
-	apiPane, apiStatus := conversation("api", api, s2)
+	webPane, webStatus := conversationIn(t, srv, scratch, "web", web, s1)
+	apiPane, apiStatus := conversationIn(t, srv, scratch, "api", api, s2)
 	if _, err := startNamed(srv, "dev", "exec sleep 1000", web, web, roleStack); err != nil {
 		t.Fatal(err)
 	}
 
 	// The projects screen, as the panel reads the machine. The scratch
 	// is temporary, which is no project; here both are.
-	k := newKnown()
-	k.root[web], k.root[api] = web, api
-	m := model{srv: srv, ws: ws, own: own, screen: onProjects, home: scratch, conn: "conn", known: k, g: g, loaded: true, width: panelWidth, height: 34}
-	var update func(m model, msg tea.Msg) model
-	update = func(m model, msg tea.Msg) model {
-		if msg == nil {
-			return m
-		}
-		if batch, ok := msg.(tea.BatchMsg); ok {
-			for _, c := range batch {
-				if c != nil {
-					m = update(m, c())
-				}
-			}
-			return m
-		}
-		next, _ := m.Update(msg)
-		return next.(model)
-	}
-	press := func(k tea.Key) {
-		next, c := m.Update(tea.KeyPressMsg(k))
-		m = next.(model)
-		if c != nil {
-			m = update(m, c())
-		}
-	}
+	k := knownRoots(web, api)
+	m := modelOnProjects(srv, ws, own, scratch, g, k)
+	press := func(k tea.Key) { m = pressed(m, k) }
 	// What the projects screen and web's panel draw, read now beside
 	// what m has seen.
-	projectsNow := func() model {
-		p := m
-		p.screen, p.cursor, p.width, p.height = onProjects, 0, 120, 36
-		return update(p, p.read()())
-	}
-	panelNow := func() model {
-		p := m
-		if p.screen != onProject || p.cur.Root != web {
-			p.screen, p.cur, p.rows, p.cursor = onProject, project{Name: "web", Root: web}, nil, 0
-		}
-		p = update(p, p.read()())
-		// The cursor off the conversation's row, on the dev server's.
-		for i, it := range p.items() {
-			if it.row >= 0 && p.rows[it.row].conv == nil {
-				p.cursor = i
-			}
-		}
-		return p
-	}
-	screen := func(m model) (raw, lines []string) {
-		raw, _ = m.draw()
-		lines = make([]string, len(raw))
-		for i := range raw {
-			lines[i] = strings.TrimRight(plainText(raw[i]), " ")
-		}
-		return raw, lines
-	}
-	saying := func(lines []string, s string) int {
-		for i, l := range lines {
-			if strings.Contains(l, s) {
-				return i
-			}
-		}
-		return -1
-	}
-	indent := func(s string) int { return ansi.StringWidth(s) - ansi.StringWidth(strings.TrimLeft(s, " ")) }
-	sgr := regexp.MustCompile("\x1b\\[[0-9;]*m")
-	lastSGR := func(s string) string {
-		all := sgr.FindAllString(s, -1)
-		if len(all) == 0 {
-			return ""
-		}
-		return all[len(all)-1]
-	}
+	projectsNow := func() model { return projectsRead(m, 120) }
+	panelNow := func() model { return panelRead(m, web) }
 
-	var said strings.Builder
-	shot := 0
 	frame := func(name string, v model) {
-		if shots == "" {
-			return
-		}
-		fmt.Fprintf(&said, "%s: title %q, bells %d\n", name, title(), bells())
-		if err := os.WriteFile(filepath.Join(shots, "tab-title-and-bell.txt"), []byte(said.String()), 0o644); err != nil {
-			t.Error(err)
-		}
-		if shot++; shot > 6 {
-			return
-		}
-		var b strings.Builder
-		fmt.Fprintf(&b, "\x1b]10;%s\x1b\\\x1b]11;%s\x1b\\\x1b[2J\x1b[H", theme.Hex(g.Ink), g.Surface)
-		for _, l := range strings.Split(v.View().Content, "\n") {
-			b.WriteString(l + "\x1b[0m" + strings.Repeat(" ", max(120-ansi.StringWidth(l), 0)) + "\r\n")
-		}
-		if v.screen == onProject {
-			b.WriteString(drawnStatus(t, srv))
-		}
-		if err := os.WriteFile(filepath.Join(shots, name), []byte(strings.TrimSuffix(b.String(), "\r\n")+"\x1b[0m"), 0o644); err != nil {
-			t.Error(err)
-		}
+		shots.note("tab-title-and-bell.txt", fmt.Sprintf("%s: title %q, bells %d", name, title(), bells()))
+		shots.panel(name, v, srv, false)
 	}
 
 	// step reads the machine until the tab says what is wanted, then
 	// once more, and checks the title and the bells rung so far.
 	step := func(what string, wantTitle func(string) bool, wantSaid string, wantBells int) {
 		t.Helper()
-		deadline := time.Now().Add(3 * time.Second)
-		for {
-			m = update(m, m.read()())
-			if wantTitle(title()) && bells() >= wantBells || time.Now().After(deadline) {
-				break
-			}
-			time.Sleep(100 * time.Millisecond)
-		}
-		// A bell too many would come at once.
-		time.Sleep(300 * time.Millisecond)
-		m = update(m, m.read()())
-		time.Sleep(300 * time.Millisecond)
+		readUntil(&m, func() bool { return wantTitle(title()) && bells() >= wantBells })
 		if got := title(); !wantTitle(got) {
 			t.Errorf("%s, the tab's title is %q, want %s", what, got, wantSaid)
 		}
@@ -4880,7 +4651,7 @@ func TestATurnHandedBackWaits(t *testing.T) {
 	// conversation waits, or, with no, that neither says it.
 	waitingSaid := func(what string, yes bool) {
 		t.Helper()
-		praw, plines := screen(projectsNow())
+		praw, plines := drawnScreen(projectsNow())
 		pall := strings.Join(plines, "\n")
 		at := -1
 		for i, l := range plines {
@@ -4891,9 +4662,9 @@ func TestATurnHandedBackWaits(t *testing.T) {
 		if at < 0 {
 			t.Fatalf("%s, the projects screen has no line for web:\n%s", what, pall)
 		}
-		raw, lines := screen(panelNow())
+		raw, lines := drawnScreen(panelNow())
 		all := strings.Join(lines, "\n")
-		row := saying(lines, finishes)
+		row := lineSaying(lines, finishes)
 		if row < 0 {
 			t.Fatalf("%s, web's panel has no row for the conversation:\n%s", what, all)
 		}
@@ -5003,165 +4774,33 @@ func TestATurnHandedBackWaits(t *testing.T) {
 // work again. What is read is the machine, as the panel reads it:
 // tmux's panes, and Claude Code's instance files.
 func TestAFinishedTurnReachesTheStatusLine(t *testing.T) {
-	bin, err := exec.LookPath("tmux")
-	if err != nil {
-		t.Skip("no tmux")
-	}
-	script, err := exec.LookPath("script")
-	if err != nil {
-		t.Skip("no script to give a client a terminal")
-	}
-	shots := os.Getenv("SHOTS")
-	wear(theme.Dark)
-	t.Cleanup(undress)
-	g := theme.Dark
+	shots, g := darkShots(t, 6)
 
-	scratch, err := os.MkdirTemp("/tmp", "cs-")
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() { _ = os.RemoveAll(scratch) })
-	scratch, _ = filepath.EvalSymlinks(scratch)
-	t.Setenv("HOME", scratch)
-	t.Setenv("CLAUDE_CONFIG_DIR", filepath.Join(scratch, ".claude"))
-	t.Setenv("LC_ALL", "C.UTF-8")
-	repo := func(name string) string {
-		dir := filepath.Join(scratch, name)
-		if err := os.MkdirAll(dir, 0o755); err != nil {
-			t.Fatal(err)
-		}
-		git(t, dir, "init", "-q")
-		git(t, dir, "commit", "-q", "--allow-empty", "-m", "first")
-		return dir
-	}
+	bin, scratch := tmuxScratch(t)
+	repo := func(name string) string { return newRepo(t, filepath.Join(scratch, name)) }
 	web, api := repo("web"), repo("api")
 	s1, s2 := "aaaaaaaa-0000-0000-0000-000000000001", "bbbbbbbb-0000-0000-0000-000000000002"
 
-	path := write(t, filepath.Join(scratch, "tmux.conf"), conf(g))
-	srv := &tmux.Server{Tmux: bin, Socket: filepath.Join(scratch, "s")}
-	t.Cleanup(func() { _ = srv.Down() })
-	out, err := srv.Run("-f", path, "new-session", "-d", "-s", sessionName, "-x", "120", "-y", "36", "-c", scratch, "-P", "-F", "#{window_id} #{pane_id}", "sleep 1000")
-	if err != nil {
-		t.Fatal(err)
-	}
-	win, own, _ := strings.Cut(strings.TrimSpace(out), " ")
-	if _, err := srv.Do(tmux.SetPane(own, panelMark, "1")); err != nil {
-		t.Fatal(err)
-	}
-	ws := newWorkspace(srv, win, own, "/x")
-	ws.hold = "sleep 1000"
+	srv, ws, own := panelWindow(t, bin, scratch, g)
 
-	// A terminal's client, its output what the terminal would be sent,
-	// for the bell.
-	attach := bin + " -S " + srv.Socket + " attach -t " + sessionName
-	var cmd *exec.Cmd
-	if runtime.GOOS == "darwin" {
-		cmd = exec.Command(script, "-q", "/dev/null", "/bin/sh", "-c", attach)
-	} else {
-		cmd = exec.Command(script, "-qfec", attach, "/dev/null")
-	}
-	cmd.Env = append(os.Environ(), "TERM=xterm-256color", "TMUX=")
-	in, keepOpen, err := os.Pipe()
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() { _ = keepOpen.Close() })
-	cmd.Stdin = in
-	var tty safeBuffer
-	cmd.Stdout, cmd.Stderr = &tty, &tty
-	if err := cmd.Start(); err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() { _ = cmd.Process.Kill(); _ = cmd.Wait() })
-	for deadline := time.Now().Add(3 * time.Second); len(terminals(srv)) == 0; time.Sleep(50 * time.Millisecond) {
-		if time.Now().After(deadline) {
-			t.Fatalf("no client attached: %q", tty.String())
-		}
-	}
-	time.Sleep(300 * time.Millisecond)
-	osc := regexp.MustCompile("\x1b\\]([0-9]*)(?:;([^\x07\x1b]*))?(?:\x07|\x1b\\\\)")
-	title := func() string {
-		got := ""
-		for _, m := range osc.FindAllStringSubmatch(tty.String(), -1) {
-			if m[1] == "0" || m[1] == "2" {
-				got = m[2]
-			}
-		}
-		return got
-	}
-	bells := func() int {
-		return strings.Count(osc.ReplaceAllString(tty.String(), ""), "\a")
-	}
+	terminal := attachTerminal(t, bin, srv)
+	title, bells := terminal.title, terminal.bells
 
 	// A conversation in each, in a pane conn holds: a sleep, its
 	// instance file saying what Claude Code would.
-	conversation := func(name, dir, session string) (string, func(string)) {
-		id, err := openWindow(srv, name, dir, "sleep 1000", session)
-		if err != nil {
-			t.Fatal(err)
-		}
-		pid, err := srv.Run("display", "-p", "-t", id, "#{pane_pid}")
-		if err != nil {
-			t.Fatal(err)
-		}
-		instance := filepath.Join(scratch, ".claude", "sessions", strings.TrimSpace(pid)+".json")
-		return id, func(s string) {
-			write(t, instance, `{"sessionId":"`+session+`","status":"`+s+`","cwd":"`+dir+`"}`)
-		}
-	}
-	webPane, webStatus := conversation("web", web, s1)
-	_, apiStatus := conversation("api", api, s2)
+	webPane, webStatus := conversationIn(t, srv, scratch, "web", web, s1)
+	_, apiStatus := conversationIn(t, srv, scratch, "api", api, s2)
 
-	k := newKnown()
-	k.root[web], k.root[api] = web, api
-	m := model{srv: srv, ws: ws, own: own, screen: onProjects, home: scratch, conn: "conn", known: k, g: g, loaded: true, width: panelWidth, height: 34}
-	var update func(m model, msg tea.Msg) model
-	update = func(m model, msg tea.Msg) model {
-		if msg == nil {
-			return m
-		}
-		if batch, ok := msg.(tea.BatchMsg); ok {
-			for _, c := range batch {
-				if c != nil {
-					m = update(m, c())
-				}
-			}
-			return m
-		}
-		next, _ := m.Update(msg)
-		return next.(model)
-	}
-	press := func(k tea.Key) {
-		next, c := m.Update(tea.KeyPressMsg(k))
-		m = next.(model)
-		if c != nil {
-			m = update(m, c())
-		}
-	}
+	k := knownRoots(web, api)
+	m := modelOnProjects(srv, ws, own, scratch, g, k)
+	press := func(k tea.Key) { m = pressed(m, k) }
 
-	plain := regexp.MustCompile(`#\[[^\]]*\]`)
-	var said strings.Builder
-	shot := 0
 	frame := func(name string) {
-		if shots == "" {
+		if !shots.on() {
 			return
 		}
-		fmt.Fprintf(&said, "%s: title %q, bells %d, status line %q\n", name, title(), bells(), plain.ReplaceAllString(statusRight(t, srv), ""))
-		if err := os.WriteFile(filepath.Join(shots, "tab-title-and-bell.txt"), []byte(said.String()), 0o644); err != nil {
-			t.Error(err)
-		}
-		if shot++; shot > 6 {
-			return
-		}
-		var b strings.Builder
-		fmt.Fprintf(&b, "\x1b]10;%s\x1b\\\x1b]11;%s\x1b\\\x1b[2J\x1b[H", theme.Hex(g.Ink), g.Surface)
-		for _, l := range strings.Split(m.View().Content, "\n") {
-			b.WriteString(l + "\x1b[0m" + strings.Repeat(" ", max(120-ansi.StringWidth(l), 0)) + "\r\n")
-		}
-		b.WriteString(drawnStatus(t, srv))
-		if err := os.WriteFile(filepath.Join(shots, name), []byte(b.String()+"\x1b[0m"), 0o644); err != nil {
-			t.Error(err)
-		}
+		shots.note("tab-title-and-bell.txt", fmt.Sprintf("%s: title %q, bells %d, status line %q", name, title(), bells(), plainText(statusRight(t, srv))))
+		shots.panel(name, m, srv, true)
 	}
 
 	// step reads the machine until the status line says what is wanted
@@ -5182,20 +4821,9 @@ func TestAFinishedTurnReachesTheStatusLine(t *testing.T) {
 			return strings.Join(w, " ")
 		}()
 		said := func() string {
-			return strings.Join(strings.Fields(plain.ReplaceAllString(statusRight(t, srv), "")), " ")
+			return strings.Join(strings.Fields(plainText(statusRight(t, srv))), " ")
 		}
-		deadline := time.Now().Add(3 * time.Second)
-		for {
-			m = update(m, m.read()())
-			if said() == want && bells() >= wantBells || time.Now().After(deadline) {
-				break
-			}
-			time.Sleep(100 * time.Millisecond)
-		}
-		// A bell too many would come at once.
-		time.Sleep(300 * time.Millisecond)
-		m = update(m, m.read()())
-		time.Sleep(300 * time.Millisecond)
+		readUntil(&m, func() bool { return said() == want && bells() >= wantBells })
 		if got := said(); got != want {
 			t.Errorf("%s, the status line says %q, want %q", what, got, want)
 		}
@@ -5238,7 +4866,7 @@ func TestAFinishedTurnReachesTheStatusLine(t *testing.T) {
 	}
 	step("with a check failed", 2, 1, 1, 3)
 	frame("finished-failed-120x36.ans")
-	if status := plain.ReplaceAllString(statusRight(t, srv), ""); strings.Index(status, "waiting") >= strings.Index(status, "finished") || strings.Index(status, "finished") >= strings.Index(status, "failed") {
+	if status := plainText(statusRight(t, srv)); strings.Index(status, "waiting") >= strings.Index(status, "finished") || strings.Index(status, "finished") >= strings.Index(status, "failed") {
 		t.Errorf("the status line does not put finished between waiting and failed: %q", status)
 	}
 	if t.Failed() {
@@ -5272,190 +4900,43 @@ func TestAFinishedTurnReachesTheStatusLine(t *testing.T) {
 // is the machine, as the panel reads it: tmux's panes, Claude Code's
 // instance files and the conversation's transcript.
 func TestAFinishedTurnSaysHowItEnded(t *testing.T) {
-	bin, err := exec.LookPath("tmux")
-	if err != nil {
-		t.Skip("no tmux")
-	}
-	shots := os.Getenv("SHOTS")
-	wear(theme.Dark)
-	t.Cleanup(undress)
-	g := theme.Dark
+	shots, g := darkShots(t, 6)
 
-	scratch, err := os.MkdirTemp("/tmp", "cs-")
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() { _ = os.RemoveAll(scratch) })
-	scratch, _ = filepath.EvalSymlinks(scratch)
-	t.Setenv("HOME", scratch)
-	t.Setenv("CLAUDE_CONFIG_DIR", filepath.Join(scratch, ".claude"))
-	t.Setenv("LC_ALL", "C.UTF-8")
-	web := filepath.Join(scratch, "web")
-	if err := os.MkdirAll(web, 0o755); err != nil {
-		t.Fatal(err)
-	}
-	git(t, web, "init", "-q")
-	git(t, web, "commit", "-q", "--allow-empty", "-m", "first")
+	bin, scratch := tmuxScratch(t)
+	web := newRepo(t, filepath.Join(scratch, "web"))
 
 	const title = "Move the flag into config"
 	s1 := "aaaaaaaa-0000-0000-0000-000000000001"
-	encoded := regexp.MustCompile("[^A-Za-z0-9]").ReplaceAllString(web, "-")
-	transcript := write(t, filepath.Join(scratch, ".claude", "projects", encoded, s1+".jsonl"),
+	transcript := write(t, transcriptPath(scratch, web, s1),
 		`{"type":"user","cwd":`+strconv.Quote(web)+`,"message":{"role":"user","content":"move the flag into config"}}`+"\n"+
 			`{"type":"ai-title","aiTitle":`+strconv.Quote(title)+`}`+"\n")
-	say := func(lines ...string) {
-		t.Helper()
-		f, err := os.OpenFile(transcript, os.O_APPEND|os.O_WRONLY, 0o600)
-		if err != nil {
-			t.Fatal(err)
-		}
-		defer func() { _ = f.Close() }()
-		for _, l := range lines {
-			if _, err := f.WriteString(l + "\n"); err != nil {
-				t.Fatal(err)
-			}
-		}
-	}
 	text := func(s string) string {
 		return `{"type":"assistant","cwd":` + strconv.Quote(web) + `,"message":{"role":"assistant","content":[{"type":"text","text":` + strconv.Quote(s) + `}]}}`
 	}
 	prompt := func(s string) string {
 		return `{"type":"user","cwd":` + strconv.Quote(web) + `,"message":{"role":"user","content":` + strconv.Quote(s) + `}}`
 	}
-	tool := func(id, name, input string) string {
-		return `{"type":"assistant","cwd":` + strconv.Quote(web) + `,"message":{"role":"assistant","content":[{"type":"tool_use","id":"` + id + `","name":"` + name + `","input":` + input + `}]}}`
-	}
-	result := func(id string) string {
-		return `{"type":"user","cwd":` + strconv.Quote(web) + `,"message":{"role":"user","content":[{"type":"tool_result","tool_use_id":"` + id + `","content":"ok"}]}}`
-	}
 
-	path := write(t, filepath.Join(scratch, "tmux.conf"), conf(g))
-	srv := &tmux.Server{Tmux: bin, Socket: filepath.Join(scratch, "s")}
-	t.Cleanup(func() { _ = srv.Down() })
-	out, err := srv.Run("-f", path, "new-session", "-d", "-s", sessionName, "-x", "120", "-y", "36", "-c", scratch, "-P", "-F", "#{window_id} #{pane_id}", "sleep 1000")
-	if err != nil {
-		t.Fatal(err)
-	}
-	win, own, _ := strings.Cut(strings.TrimSpace(out), " ")
-	if _, err := srv.Do(tmux.SetPane(own, panelMark, "1")); err != nil {
-		t.Fatal(err)
-	}
-	ws := newWorkspace(srv, win, own, "/x")
-	ws.hold = "sleep 1000"
+	srv, ws, own := panelWindow(t, bin, scratch, g)
 
 	// The conversation runs in a pane conn holds in web, its instance
 	// file saying what Claude Code would; a dev server runs beside it,
 	// a row for the cursor to rest on.
-	webPane, err := openWindow(srv, "web", web, "sleep 1000", s1)
-	if err != nil {
-		t.Fatal(err)
-	}
-	pid, err := srv.Run("display", "-p", "-t", webPane, "#{pane_pid}")
-	if err != nil {
-		t.Fatal(err)
-	}
-	instance := filepath.Join(scratch, ".claude", "sessions", strings.TrimSpace(pid)+".json")
-	status := func(s string) {
-		write(t, instance, `{"sessionId":"`+s1+`","status":"`+s+`","cwd":"`+web+`"}`)
-	}
+	webPane, status := conversationIn(t, srv, scratch, "web", web, s1)
 	if _, err := startNamed(srv, "dev", "exec sleep 1000", web, web, roleStack); err != nil {
 		t.Fatal(err)
 	}
 
-	k := newKnown()
-	k.root[web] = web
-	m := model{srv: srv, ws: ws, own: own, screen: onProjects, home: scratch, conn: "conn", known: k, g: g, loaded: true, width: panelWidth, height: 34}
-	var update func(m model, msg tea.Msg) model
-	update = func(m model, msg tea.Msg) model {
-		if msg == nil {
-			return m
-		}
-		if batch, ok := msg.(tea.BatchMsg); ok {
-			for _, c := range batch {
-				if c != nil {
-					m = update(m, c())
-				}
-			}
-			return m
-		}
-		next, _ := m.Update(msg)
-		return next.(model)
-	}
-	press := func(k tea.Key) {
-		next, c := m.Update(tea.KeyPressMsg(k))
-		m = next.(model)
-		if c != nil {
-			m = update(m, c())
-		}
-	}
+	k := knownRoots(web)
+	m := modelOnProjects(srv, ws, own, scratch, g, k)
+	press := func(k tea.Key) { m = pressed(m, k) }
 	// What the projects screen, at the width given, and web's panel
 	// draw, read now beside what m has seen.
-	projectsNow := func(width int) model {
-		p := m
-		p.screen, p.cursor, p.width, p.height = onProjects, 0, width, 36
-		return update(p, p.read()())
-	}
-	panelNow := func() model {
-		p := m
-		if p.screen != onProject || p.cur.Root != web {
-			p.screen, p.cur, p.rows, p.cursor = onProject, project{Name: "web", Root: web}, nil, 0
-		}
-		p.width, p.height = panelWidth, 34
-		p = update(p, p.read()())
-		// The cursor off the conversation's row, on the dev server's.
-		for i, it := range p.items() {
-			if it.row >= 0 && p.rows[it.row].conv == nil {
-				p.cursor = i
-			}
-		}
-		return p
-	}
-	screen := func(m model) (raw, lines []string) {
-		raw, _ = m.draw()
-		lines = make([]string, len(raw))
-		for i := range raw {
-			lines[i] = strings.TrimRight(plainText(raw[i]), " ")
-		}
-		return raw, lines
-	}
-	saying := func(lines []string, s string) int {
-		for i, l := range lines {
-			if strings.Contains(l, s) {
-				return i
-			}
-		}
-		return -1
-	}
-	indent := func(s string) int { return ansi.StringWidth(s) - ansi.StringWidth(strings.TrimLeft(s, " ")) }
-	sgr := regexp.MustCompile("\x1b\\[[0-9;]*m")
-	lastSGR := func(s string) string {
-		all := sgr.FindAllString(s, -1)
-		if len(all) == 0 {
-			return ""
-		}
-		return all[len(all)-1]
-	}
-	grayInk := lastSGR(strings.SplitN(gray.Render("x"), "x", 2)[0])
+	projectsNow := func(width int) model { return projectsRead(m, width) }
+	panelNow := func() model { return panelRead(m, web) }
 
-	shot := 0
 	frame := func(name string, v model) {
-		if shots == "" {
-			return
-		}
-		if shot++; shot > 6 {
-			return
-		}
-		var b strings.Builder
-		fmt.Fprintf(&b, "\x1b]10;%s\x1b\\\x1b]11;%s\x1b\\\x1b[2J\x1b[H", theme.Hex(g.Ink), g.Surface)
-		for _, l := range strings.Split(v.View().Content, "\n") {
-			b.WriteString(l + "\x1b[0m" + strings.Repeat(" ", max(120-ansi.StringWidth(l), 0)) + "\r\n")
-		}
-		if v.screen == onProject {
-			b.WriteString(drawnStatus(t, srv))
-		}
-		if err := os.WriteFile(filepath.Join(shots, name), []byte(strings.TrimSuffix(b.String(), "\r\n")+"\x1b[0m"), 0o644); err != nil {
-			t.Error(err)
-		}
+		shots.panel(name, v, srv, false)
 	}
 
 	// under checks that, under the conversation's name on v's screen,
@@ -5465,17 +4946,17 @@ func TestAFinishedTurnSaysHowItEnded(t *testing.T) {
 	screenName := map[int]string{int(onProjects): "projects screen", int(onProject): "panel"}
 	under := func(what string, v model, want string, cut bool, width int) {
 		t.Helper()
-		raw, lines := screen(v)
+		raw, lines := drawnScreen(v)
 		all := strings.Join(lines, "\n")
 		if want == "" {
 			for _, said := range []string{"Should I also", "All tests pass", "wants to"} {
-				if saying(lines, said) >= 0 {
+				if lineSaying(lines, said) >= 0 {
 					t.Errorf("%s, the %s still says %q:\n%s", what, screenName[int(v.screen)], said, all)
 				}
 			}
 			return
 		}
-		at := saying(lines, title)
+		at := lineSaying(lines, title)
 		if at < 0 {
 			t.Fatalf("%s, the %s has no line for the conversation:\n%s", what, screenName[int(v.screen)], all)
 		}
@@ -5496,42 +4977,42 @@ func TestAFinishedTurnSaysHowItEnded(t *testing.T) {
 		if name := strings.Index(lines[at], title); indent(next) != ansi.StringWidth(lines[at][:name]) {
 			t.Errorf("%s, the line %q starts at column %d, not under the name in %q", what, next, indent(next), lines[at])
 		}
-		if i := strings.Index(raw[at+1], got[:1]); i < 0 || lastSGR(raw[at+1][:i]) != grayInk {
+		if i := strings.Index(raw[at+1], got[:1]); i < 0 || lastSGR(raw[at+1][:i]) != grayInk() {
 			t.Errorf("%s, the line %q is not in the gray: %q", what, next, raw[at+1])
 		}
 	}
 
 	// At work, nothing is said under it.
 	status("busy")
-	m = update(m, m.read()())
+	m = updated(m, m.read()())
 	under("at work", projectsNow(120), "", false, 120)
 
 	// The turn over, its last message's last line is said, on both.
 	const question = "Should I also update the docs?"
-	say(text("I moved the flag into config and the tests pass.\n\n" + question))
+	appendLines(t, transcript, text("I moved the flag into config and the tests pass.\n\n"+question))
 	status("idle")
-	m = update(m, m.read()())
+	m = updated(m, m.read()())
 	under("with the turn handed back on a question", projectsNow(120), question, false, 120)
 	under("with the turn handed back on a question", panelNow(), question, false, panelWidth)
-	if _, lines := screen(projectsNow(120)); saying(lines, "I moved the flag") >= 0 {
+	if _, lines := drawnScreen(projectsNow(120)); lineSaying(lines, "I moved the flag") >= 0 {
 		t.Errorf("the projects screen says more than the message's last line:\n%s", strings.Join(lines, "\n"))
 	}
 	frame("handed-back-120x36.ans", projectsNow(120))
 	frame("handed-back-panel-120x36.ans", panelNow())
 
 	// At work again, the line goes.
-	say(prompt("yes, please"))
+	appendLines(t, transcript, prompt("yes, please"))
 	status("busy")
-	m = update(m, m.read()())
+	m = updated(m, m.read()())
 	under("at work again", projectsNow(120), "", false, 120)
 	under("at work again", panelNow(), "", false, panelWidth)
 
 	// Handed back on a statement, and one too long for the panel: cut
 	// with "…" two columns before the edge.
 	const long = "All tests pass; pushed to story/9. The branch is ready for review whenever you are."
-	say(text("Done.\n" + long))
+	appendLines(t, transcript, text("Done.\n"+long))
 	status("idle")
-	m = update(m, m.read()())
+	m = updated(m, m.read()())
 	under("with a long last line, in the room", projectsNow(120), long, false, 120)
 	under("with a long last line", projectsNow(panelWidth), long, true, panelWidth)
 	under("with a long last line", panelNow(), long, true, panelWidth)
@@ -5539,27 +5020,27 @@ func TestAFinishedTurnSaysHowItEnded(t *testing.T) {
 
 	// Stopped on a command, it still says what it wants to run, and
 	// not how a message ended.
-	say(prompt("then go on"))
+	appendLines(t, transcript, prompt("then go on"))
 	status("busy")
-	m = update(m, m.read()())
-	say(text("Cleaning up."), tool("toolu_1", "Bash", `{"command":"rm -rf dist"}`))
+	m = updated(m, m.read()())
+	appendLines(t, transcript, text("Cleaning up."), toolUseLine(web, "toolu_1", "Bash", `{"command":"rm -rf dist"}`))
 	status("waiting")
-	m = update(m, m.read()())
+	m = updated(m, m.read()())
 	under("stopped on a command", projectsNow(120), "wants to run: rm -rf dist", false, 120)
 	under("stopped on a command", panelNow(), "wants to run: rm -rf dist", false, panelWidth)
 
 	// Handed back once more, then gone into: the line goes.
-	say(result("toolu_1"), text("All tests pass; pushed to story/9."))
+	appendLines(t, transcript, toolResultLine(web, "toolu_1"), text("All tests pass; pushed to story/9."))
 	status("busy")
-	m = update(m, m.read()())
+	m = updated(m, m.read()())
 	status("idle")
-	m = update(m, m.read()())
+	m = updated(m, m.read()())
 	under("with the turn handed back again", projectsNow(120), "All tests pass; pushed to story/9.", false, 120)
 	press(tea.Key{Code: tea.KeyTab})
 	if m.in != webPane {
 		t.Fatalf("tab went into %q, want the conversation %s", m.in, webPane)
 	}
-	m = update(m, m.read()())
+	m = updated(m, m.read()())
 	under("gone into", projectsNow(120), "", false, 120)
 	under("gone into", panelNow(), "", false, panelWidth)
 	frame("looked-at-120x36.ans", projectsNow(120))
@@ -5655,7 +5136,6 @@ func TestTheClockTicks(t *testing.T) {
 // order it was, and a run started again keeps its line.
 func TestLsStandsAsThePanel(t *testing.T) {
 	srv, _, _ := scratchServer(t)
-	t.Setenv("CONN_SOCKET", srv.Socket)
 	t.Setenv("TMUX", "")
 	t.Setenv("TMUX_PANE", "")
 	dir := filepath.Join(filepath.Dir(srv.Socket), "p")
@@ -5784,37 +5264,12 @@ func TestANarrowWindowTakesTurns(t *testing.T) {
 // it again clears it. What it printed is what its pane holds, as the
 // panel reads it from tmux.
 func TestAFailedRunSaysWhy(t *testing.T) {
-	bin, err := exec.LookPath("tmux")
-	if err != nil {
-		t.Skip("no tmux")
-	}
-	shots := os.Getenv("SHOTS")
-	wear(theme.Dark)
-	t.Cleanup(undress)
-	g := theme.Dark
+	shots, g := darkShots(t, 6)
 
-	scratch, err := os.MkdirTemp("/tmp", "cs-")
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() { _ = os.RemoveAll(scratch) })
-	scratch, _ = filepath.EvalSymlinks(scratch)
-	t.Setenv("HOME", scratch)
-	t.Setenv("CLAUDE_CONFIG_DIR", filepath.Join(scratch, ".claude"))
-	t.Setenv("LC_ALL", "C.UTF-8")
-	web := filepath.Join(scratch, "web")
-	if err := os.MkdirAll(web, 0o755); err != nil {
-		t.Fatal(err)
-	}
-	git(t, web, "init", "-q")
-	git(t, web, "commit", "-q", "--allow-empty", "-m", "first")
+	bin, scratch := tmuxScratch(t)
+	web := newRepo(t, filepath.Join(scratch, "web"))
 
-	path := write(t, filepath.Join(scratch, "tmux.conf"), conf(g))
-	srv := &tmux.Server{Tmux: bin, Socket: filepath.Join(scratch, "s")}
-	t.Cleanup(func() { _ = srv.Down() })
-	if _, err := srv.Run("-f", path, "new-session", "-d", "-s", sessionName, "-x", "120", "-y", "36", "-c", scratch, "sleep 1000"); err != nil {
-		t.Fatal(err)
-	}
+	srv := dressedServer(t, bin, scratch, g)
 
 	// A check fails with its reason and then its verdict, as go test
 	// writes them, and a server with its reason alone; each, run again,
@@ -5841,79 +5296,17 @@ func TestAFailedRunSaysWhy(t *testing.T) {
 	}
 
 	// The scratch is temporary, which is no project; here it is one.
-	k := newKnown()
-	k.root[web] = web
-	var update func(m model, msg tea.Msg) model
-	update = func(m model, msg tea.Msg) model {
-		if msg == nil {
-			return m
-		}
-		if batch, ok := msg.(tea.BatchMsg); ok {
-			for _, c := range batch {
-				if c != nil {
-					m = update(m, c())
-				}
-			}
-			return m
-		}
-		next, _ := m.Update(msg)
-		return next.(model)
-	}
+	k := knownRoots(web)
 	projectsNow := func() model {
 		m := model{srv: srv, screen: onProjects, home: scratch, conn: "conn", known: k, g: g, width: 120, height: 36}
-		return update(m, m.read()())
+		return updated(m, m.read()())
 	}
 	panelNow := func() model {
 		m := model{srv: srv, screen: onProject, cur: project{Name: "web", Root: web}, home: scratch, conn: "conn", known: k, g: g, loaded: true, width: panelWidth, height: 34}
-		return update(m, m.read()())
+		return updated(m, m.read()())
 	}
-	screen := func(m model) (raw, lines []string) {
-		raw, _ = m.draw()
-		lines = make([]string, len(raw))
-		for i := range raw {
-			lines[i] = strings.TrimRight(plainText(raw[i]), " ")
-		}
-		return raw, lines
-	}
-	indent := func(s string) int { return ansi.StringWidth(s) - ansi.StringWidth(strings.TrimLeft(s, " ")) }
-	sgr := regexp.MustCompile("\x1b\\[[0-9;]*m")
-	lastSGR := func(s string) string {
-		all := sgr.FindAllString(s, -1)
-		if len(all) == 0 {
-			return ""
-		}
-		return all[len(all)-1]
-	}
-	grayInk := lastSGR(strings.SplitN(gray.Render("x"), "x", 2)[0])
-	// rowOf is the line that says a row's name after its mark.
-	rowOf := func(lines []string, name string) int {
-		re := regexp.MustCompile(`^[▌ ]*\S ` + regexp.QuoteMeta(name) + `(\s|$)`)
-		for i, l := range lines {
-			if re.MatchString(l) {
-				return i
-			}
-		}
-		return -1
-	}
-	shot := 0
 	frame := func(name string, v model) {
-		if shots == "" {
-			return
-		}
-		if shot++; shot > 6 {
-			return
-		}
-		var b strings.Builder
-		fmt.Fprintf(&b, "\x1b]10;%s\x1b\\\x1b]11;%s\x1b\\\x1b[2J\x1b[H", theme.Hex(g.Ink), g.Surface)
-		for _, l := range strings.Split(v.View().Content, "\n") {
-			b.WriteString(l + "\x1b[0m" + strings.Repeat(" ", max(120-ansi.StringWidth(l), 0)) + "\r\n")
-		}
-		if v.screen == onProject {
-			b.WriteString(drawnStatus(t, srv))
-		}
-		if err := os.WriteFile(filepath.Join(shots, name), []byte(strings.TrimSuffix(b.String(), "\r\n")+"\x1b[0m"), 0o644); err != nil {
-			t.Error(err)
-		}
+		shots.panel(name, v, srv, false)
 	}
 
 	// noVerdict: neither screen says a verdict as the reason.
@@ -5931,72 +5324,33 @@ func TestAFailedRunSaysWhy(t *testing.T) {
 	// or, with want blank, that nothing under it does.
 	panelSays := func(what string, name, want string) {
 		t.Helper()
-		raw, lines := screen(panelNow())
-		all := strings.Join(lines, "\n")
-		at := rowOf(lines, name)
-		if at < 0 {
-			t.Fatalf("%s, the panel has no row for %s:\n%s", what, name, all)
-		}
-		next := ""
-		if at+1 < len(lines) {
-			next = lines[at+1]
-		}
+		raw, lines := drawnScreen(panelNow())
+		at, next := rowUnder(t, what, lines, name)
 		if want == "" {
-			if strings.Contains(all, checkWhy) || strings.Contains(all, serverWhy) || strings.Contains(all, "ok  web") {
+			if all := strings.Join(lines, "\n"); strings.Contains(all, checkWhy) || strings.Contains(all, serverWhy) || strings.Contains(all, "ok  web") {
 				t.Errorf("%s, the panel still says why:\n%s", what, all)
 			}
 			return
 		}
-		if strings.TrimSpace(next) != want {
-			t.Errorf("%s, under %s's row the panel says %q, want %q:\n%s", what, name, strings.TrimSpace(next), want, all)
-			return
+		if saysUnder(t, what, raw, lines, at, next, name, want, want[:1]) {
+			noVerdict(what, lines)
 		}
-		if col := strings.Index(lines[at], name); indent(next) != ansi.StringWidth(lines[at][:col]) {
-			t.Errorf("%s, the line %q starts at column %d, not under the name in %q", what, next, indent(next), lines[at])
-		}
-		if i := strings.Index(raw[at+1], want[:1]); i < 0 || lastSGR(raw[at+1][:i]) != grayInk {
-			t.Errorf("%s, the line %q is not in the gray: %q", what, next, raw[at+1])
-		}
-		noVerdict(what, lines)
 	}
 	// projectsSay checks that, under web's line on the projects screen,
 	// a line names the run and says want after its name, in the gray;
 	// or, with want blank, that nothing there does.
 	projectsSay := func(what string, name, want string) {
 		t.Helper()
-		raw, lines := screen(projectsNow())
-		all := strings.Join(lines, "\n")
-		top := -1
-		for i, l := range lines {
-			if strings.Contains(l, "web") && strings.Contains(l, "failed") {
-				top = i
-			}
-		}
+		raw, lines := drawnScreen(projectsNow())
 		if want == "" {
-			if strings.Contains(all, checkWhy) || strings.Contains(all, serverWhy) || strings.Contains(all, "ok  web") {
+			if all := strings.Join(lines, "\n"); strings.Contains(all, checkWhy) || strings.Contains(all, serverWhy) || strings.Contains(all, "ok  web") {
 				t.Errorf("%s, the projects screen still says why:\n%s", what, all)
 			}
 			return
 		}
-		if top < 0 {
-			t.Fatalf("%s, web's line does not say what failed:\n%s", what, all)
-		}
-		for i := top + 1; i < len(lines); i++ {
-			l := lines[i]
-			n, w := strings.Index(l, name), strings.Index(l, want)
-			if n < 0 || w < 0 {
-				continue
-			}
-			if n > w || indent(l) <= indent(lines[top]) {
-				t.Errorf("%s, the line %q does not name %s first, indented under web's %q", what, l, name, lines[top])
-			}
-			if at := strings.Index(raw[i], want[:1]); at < 0 || lastSGR(raw[i][:at]) != grayInk {
-				t.Errorf("%s, %q is not in the gray: %q", what, want, raw[i])
-			}
+		if saysUnderWeb(t, what, raw, lines, name, want, want[:1]) {
 			noVerdict(what, lines)
-			return
 		}
-		t.Errorf("%s, no line under web names %s and says %q:\n%s", what, name, want, all)
 	}
 
 	// Failed, each says why under its own row, and under its project.
@@ -6013,7 +5367,7 @@ func TestAFailedRunSaysWhy(t *testing.T) {
 		next, c := m.Update(tea.KeyPressMsg(tea.Key{Code: r, Text: string(r)}))
 		m = next.(model)
 		if c != nil {
-			m = update(m, c())
+			m = updated(m, c())
 		}
 	}
 	if exit, err := waitExit(srv, checkID); err != nil || exit != "0" {
@@ -6031,43 +5385,14 @@ func TestAFailedRunSaysWhy(t *testing.T) {
 // is run again and passes turns done and loses its note, and the
 // other, still failed, keeps its own.
 func TestAHandedRunSaysWhoHasIt(t *testing.T) {
-	bin, err := exec.LookPath("tmux")
-	if err != nil {
-		t.Skip("no tmux")
-	}
-	shots := os.Getenv("SHOTS")
-	wear(theme.Dark)
-	t.Cleanup(undress)
-	g := theme.Dark
+	shots, g := darkShots(t, 6)
 
-	scratch, err := os.MkdirTemp("/tmp", "cs-")
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() { _ = os.RemoveAll(scratch) })
-	scratch, _ = filepath.EvalSymlinks(scratch)
-	t.Setenv("HOME", scratch)
-	t.Setenv("CLAUDE_CONFIG_DIR", filepath.Join(scratch, ".claude"))
-	t.Setenv("LC_ALL", "C.UTF-8")
+	bin, scratch := tmuxScratch(t)
 	// claude, as conn starts it with the brief, waits.
-	write(t, filepath.Join(scratch, "bin", "claude"), "#!/bin/sh\nexec sleep 1000\n")
-	if err := os.Chmod(filepath.Join(scratch, "bin", "claude"), 0o755); err != nil {
-		t.Fatal(err)
-	}
-	t.Setenv("PATH", filepath.Join(scratch, "bin")+":"+os.Getenv("PATH"))
-	web := filepath.Join(scratch, "web")
-	if err := os.MkdirAll(web, 0o755); err != nil {
-		t.Fatal(err)
-	}
-	git(t, web, "init", "-q")
-	git(t, web, "commit", "-q", "--allow-empty", "-m", "first")
+	standInClaude(t, scratch)
+	web := newRepo(t, filepath.Join(scratch, "web"))
 
-	path := write(t, filepath.Join(scratch, "tmux.conf"), conf(g))
-	srv := &tmux.Server{Tmux: bin, Socket: filepath.Join(scratch, "s")}
-	t.Cleanup(func() { _ = srv.Down() })
-	if _, err := srv.Run("-f", path, "new-session", "-d", "-s", sessionName, "-x", "120", "-y", "36", "-c", scratch, "sleep 1000"); err != nil {
-		t.Fatal(err)
-	}
+	srv := dressedServer(t, bin, scratch, g)
 
 	// Two checks fail, each with its reason and then its verdict; each,
 	// run again, passes.
@@ -6092,32 +5417,15 @@ func TestAHandedRunSaysWhoHasIt(t *testing.T) {
 	failing("lint", lintWhy)
 
 	// The scratch is temporary, which is no project; here it is one.
-	k := newKnown()
-	k.root[web] = web
-	var update func(m model, msg tea.Msg) model
-	update = func(m model, msg tea.Msg) model {
-		if msg == nil {
-			return m
-		}
-		if batch, ok := msg.(tea.BatchMsg); ok {
-			for _, c := range batch {
-				if c != nil {
-					m = update(m, c())
-				}
-			}
-			return m
-		}
-		next, _ := m.Update(msg)
-		return next.(model)
-	}
-	read := func(m model) model { return update(m, m.read()()) }
+	k := knownRoots(web)
+	read := func(m model) model { return updated(m, m.read()()) }
 	// press types keys, running what each asks, except that the last
 	// key's command is given back to be run by the caller.
 	press := func(m model, keys string) (model, tea.Cmd) {
 		var c tea.Cmd
 		for _, r := range keys {
 			if c != nil {
-				m = update(m, c())
+				m = updated(m, c())
 			}
 			next, cmd := m.Update(tea.KeyPressMsg(tea.Key{Code: r, Text: string(r)}))
 			m, c = next.(model), cmd
@@ -6125,10 +5433,7 @@ func TestAHandedRunSaysWhoHasIt(t *testing.T) {
 		return m, c
 	}
 	agents := func() []pane {
-		ps, err := panes(srv)
-		if err != nil {
-			t.Fatal(err)
-		}
+		ps := panesOf(t, srv)
 		var out []pane
 		for _, p := range ps {
 			if p.Session != "" {
@@ -6139,63 +5444,18 @@ func TestAHandedRunSaysWhoHasIt(t *testing.T) {
 	}
 	// The agent that conn started titles its conversation, as Claude
 	// Code does once it has had a turn.
-	encoded := regexp.MustCompile("[^A-Za-z0-9]").ReplaceAllString(web, "-")
 	titleIt := func(a pane) {
-		write(t, filepath.Join(scratch, ".claude", "projects", encoded, a.Session+".jsonl"),
+		write(t, transcriptPath(scratch, web, a.Session),
 			`{"type":"user","cwd":`+strconv.Quote(web)+`,"message":{"role":"user","content":"3 runs failed"}}`+"\n"+
 				`{"type":"ai-title","aiTitle":`+strconv.Quote(title)+`}`+"\n")
 	}
 
-	screen := func(m model) (raw, lines []string) {
-		raw, _ = m.draw()
-		lines = make([]string, len(raw))
-		for i := range raw {
-			lines[i] = strings.TrimRight(plainText(raw[i]), " ")
-		}
-		return raw, lines
-	}
 	said := func(m model) string {
 		_, f := m.draw()
 		return strings.Join(strings.Fields(plainText(m.View().Content)+" "+f.say), " ")
 	}
-	indent := func(s string) int { return ansi.StringWidth(s) - ansi.StringWidth(strings.TrimLeft(s, " ")) }
-	sgr := regexp.MustCompile("\x1b\\[[0-9;]*m")
-	lastSGR := func(s string) string {
-		all := sgr.FindAllString(s, -1)
-		if len(all) == 0 {
-			return ""
-		}
-		return all[len(all)-1]
-	}
-	grayInk := lastSGR(strings.SplitN(gray.Render("x"), "x", 2)[0])
-	rowOf := func(lines []string, name string) int {
-		re := regexp.MustCompile(`^[▌ ]*\S ` + regexp.QuoteMeta(name) + `(\s|$)`)
-		for i, l := range lines {
-			if re.MatchString(l) {
-				return i
-			}
-		}
-		return -1
-	}
-	shot := 0
 	frame := func(name string, v model) {
-		if shots == "" {
-			return
-		}
-		if shot++; shot > 6 {
-			return
-		}
-		var b strings.Builder
-		fmt.Fprintf(&b, "\x1b]10;%s\x1b\\\x1b]11;%s\x1b\\\x1b[2J\x1b[H", theme.Hex(g.Ink), g.Surface)
-		for _, l := range strings.Split(v.View().Content, "\n") {
-			b.WriteString(l + "\x1b[0m" + strings.Repeat(" ", max(120-ansi.StringWidth(l), 0)) + "\r\n")
-		}
-		if v.screen == onProject {
-			b.WriteString(drawnStatus(t, srv))
-		}
-		if err := os.WriteFile(filepath.Join(shots, name), []byte(strings.TrimSuffix(b.String(), "\r\n")+"\x1b[0m"), 0o644); err != nil {
-			t.Error(err)
-		}
+		shots.panel(name, v, srv, false)
 	}
 
 	// panelSays checks that, under the row of name on the open project's
@@ -6203,73 +5463,31 @@ func TestAHandedRunSaysWhoHasIt(t *testing.T) {
 	// want blank, that no line under the name says anything.
 	panelSays := func(what string, m model, name, want string) {
 		t.Helper()
-		raw, lines := screen(m)
-		all := strings.Join(lines, "\n")
-		at := rowOf(lines, name)
-		if at < 0 {
-			t.Fatalf("%s, the panel has no row for %s:\n%s", what, name, all)
-		}
-		col := strings.Index(lines[at], name)
-		next := ""
-		if at+1 < len(lines) {
-			next = lines[at+1]
-		}
+		raw, lines := drawnScreen(m)
+		at, next := rowUnder(t, what, lines, name)
 		if want == "" {
-			if indent(next) >= col && strings.TrimSpace(next) != "" {
-				t.Errorf("%s, under %s's row the panel still says %q:\n%s", what, name, strings.TrimSpace(next), all)
+			if indent(next) >= strings.Index(lines[at], name) && strings.TrimSpace(next) != "" {
+				t.Errorf("%s, under %s's row the panel still says %q:\n%s", what, name, strings.TrimSpace(next), strings.Join(lines, "\n"))
 			}
 			return
 		}
-		if strings.TrimSpace(next) != want {
-			t.Errorf("%s, under %s's row the panel says %q, want %q:\n%s", what, name, strings.TrimSpace(next), want, all)
-			return
-		}
-		if indent(next) != ansi.StringWidth(lines[at][:col]) {
-			t.Errorf("%s, the line %q starts at column %d, not under the name in %q", what, next, indent(next), lines[at])
-		}
-		if i := strings.Index(raw[at+1], want); i < 0 || lastSGR(raw[at+1][:i]) != grayInk {
-			t.Errorf("%s, the line %q is not in the gray: %q", what, next, raw[at+1])
-		}
+		saysUnder(t, what, raw, lines, at, next, name, want, want)
 	}
 	// projectsSay checks that, under web's line on the projects screen,
 	// a line names the run and says want after its name, in the gray;
 	// or, with want blank, that no line names the run with a ❝.
 	projectsSay := func(what string, m model, name, want string) {
 		t.Helper()
-		raw, lines := screen(m)
-		all := strings.Join(lines, "\n")
-		top := -1
-		for i, l := range lines {
-			if strings.Contains(l, "web") && strings.Contains(l, "failed") {
-				top = i
-			}
-		}
+		raw, lines := drawnScreen(m)
 		if want == "" {
 			for _, l := range lines {
 				if strings.Contains(l, name) && strings.Contains(l, "❝") {
-					t.Errorf("%s, the projects screen still names who has %s: %q\n%s", what, name, l, all)
+					t.Errorf("%s, the projects screen still names who has %s: %q\n%s", what, name, l, strings.Join(lines, "\n"))
 				}
 			}
 			return
 		}
-		if top < 0 {
-			t.Fatalf("%s, web's line does not say what failed:\n%s", what, all)
-		}
-		for i := top + 1; i < len(lines); i++ {
-			l := lines[i]
-			n, w := strings.Index(l, name), strings.Index(l, want)
-			if n < 0 || w < 0 {
-				continue
-			}
-			if n > w || indent(l) <= indent(lines[top]) {
-				t.Errorf("%s, the line %q does not name %s first, indented under web's %q", what, l, name, lines[top])
-			}
-			if at := strings.Index(raw[i], want); at < 0 || lastSGR(raw[i][:at]) != grayInk {
-				t.Errorf("%s, %q is not in the gray: %q", what, want, raw[i])
-			}
-			return
-		}
-		t.Errorf("%s, no line under web names %s and says %q:\n%s", what, name, want, all)
+		saysUnderWeb(t, what, raw, lines, name, want, want)
 	}
 	noReason := func(what string, lines []string, reasons ...string) {
 		t.Helper()
@@ -6286,7 +5504,7 @@ func TestAHandedRunSaysWhoHasIt(t *testing.T) {
 	projects := func(m model) model {
 		next, c := press(m, "-")
 		if c != nil {
-			next = update(next, c())
+			next = updated(next, c())
 		}
 		return read(next)
 	}
@@ -6305,17 +5523,17 @@ func TestAHandedRunSaysWhoHasIt(t *testing.T) {
 	}
 	titleIt(got[0])
 	if c != nil {
-		m = update(m, c())
+		m = updated(m, c())
 	}
 	m = read(m)
 	panelSays("with both handed", m, "test", note)
 	panelSays("with both handed", m, "lint", note)
-	_, lines = screen(m)
+	_, lines = drawnScreen(m)
 	noReason("with both handed", lines, testWhy, lintWhy)
 	pm := projects(m)
 	projectsSay("with both handed", pm, "test", note)
 	projectsSay("with both handed", pm, "lint", note)
-	_, lines = screen(pm)
+	_, lines = drawnScreen(pm)
 	noReason("with both handed", lines, testWhy, lintWhy)
 	frame("panel.ans", m)
 	frame("projects.ans", pm)
@@ -6323,7 +5541,7 @@ func TestAHandedRunSaysWhoHasIt(t *testing.T) {
 	// af again starts nothing and says who has them.
 	m, c = press(m, "af")
 	if c != nil {
-		m = update(m, c())
+		m = updated(m, c())
 	}
 	m = read(m)
 	if again := agents(); len(again) != 1 {
@@ -6344,7 +5562,7 @@ func TestAHandedRunSaysWhoHasIt(t *testing.T) {
 	}
 	m, c = press(m, "rr")
 	if c != nil {
-		m = update(m, c())
+		m = updated(m, c())
 	}
 	var lint pane
 	for _, r := range m.rows {
@@ -6375,7 +5593,7 @@ func TestAHandedRunSaysWhoHasIt(t *testing.T) {
 	}
 	m, c = press(m, "rr")
 	if c != nil {
-		m = update(m, c())
+		m = updated(m, c())
 	}
 	for _, r := range m.rows {
 		if r.pane != nil && r.pane.Name == "test" {
@@ -6399,56 +5617,17 @@ func TestAHandedRunSaysWhoHasIt(t *testing.T) {
 // skipped; and "nothing waits" is said only when nothing waits and
 // nothing unhanded has failed.
 func TestTabGoesToWhatFailed(t *testing.T) {
-	bin, err := exec.LookPath("tmux")
-	if err != nil {
-		t.Skip("no tmux")
-	}
-	shots := os.Getenv("SHOTS")
-	wear(theme.Dark)
-	t.Cleanup(undress)
-	g := theme.Dark
+	shots, g := darkShots(t, 6)
 
-	scratch, err := os.MkdirTemp("/tmp", "cs-")
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() { _ = os.RemoveAll(scratch) })
-	scratch, _ = filepath.EvalSymlinks(scratch)
-	t.Setenv("HOME", scratch)
-	t.Setenv("CLAUDE_CONFIG_DIR", filepath.Join(scratch, ".claude"))
-	t.Setenv("LC_ALL", "C.UTF-8")
+	bin, scratch := tmuxScratch(t)
 	// claude, as conn starts it with the brief, waits.
-	write(t, filepath.Join(scratch, "bin", "claude"), "#!/bin/sh\nexec sleep 1000\n")
-	if err := os.Chmod(filepath.Join(scratch, "bin", "claude"), 0o755); err != nil {
-		t.Fatal(err)
-	}
-	t.Setenv("PATH", filepath.Join(scratch, "bin")+":"+os.Getenv("PATH"))
-	repo := func(name string) string {
-		dir := filepath.Join(scratch, name)
-		if err := os.MkdirAll(dir, 0o755); err != nil {
-			t.Fatal(err)
-		}
-		git(t, dir, "init", "-q")
-		git(t, dir, "commit", "-q", "--allow-empty", "-m", "first")
-		return dir
-	}
+	standInClaude(t, scratch)
+	repo := func(name string) string { return newRepo(t, filepath.Join(scratch, name)) }
 	web, api := repo("web"), repo("api")
 
-	path := write(t, filepath.Join(scratch, "tmux.conf"), conf(g))
-	srv := &tmux.Server{Tmux: bin, Socket: filepath.Join(scratch, "s")}
-	t.Cleanup(func() { _ = srv.Down() })
-	out, err := srv.Run("-f", path, "new-session", "-d", "-s", sessionName, "-x", "120", "-y", "36", "-c", scratch, "-P", "-F", "#{window_id} #{pane_id}", "sleep 1000")
-	if err != nil {
-		t.Fatal(err)
-	}
 	// conn's window: the panel, and beside it the workspace tab shows
 	// a process in.
-	win, own, _ := strings.Cut(strings.TrimSpace(out), " ")
-	if _, err := srv.Do(tmux.SetPane(own, panelMark, "1")); err != nil {
-		t.Fatal(err)
-	}
-	ws := newWorkspace(srv, win, own, "/x")
-	ws.hold = "sleep 1000"
+	srv, ws, own := panelWindow(t, bin, scratch, g)
 
 	// In web four checks fail: one with its reason and then its verdict,
 	// one with only FAIL, one with nothing to say, and one that will be
@@ -6473,50 +5652,21 @@ func TestTabGoesToWhatFailed(t *testing.T) {
 	vetID := failing("vet", "echo '"+vetWhy+"'; echo FAIL; echo 'exit status 1'; exit 1")
 	failedIDs := map[string]string{testID: "test", lintID: "lint", vetID: "vet"}
 
-	encoded := regexp.MustCompile("[^A-Za-z0-9]").ReplaceAllString(api, "-")
-	write(t, filepath.Join(scratch, ".claude", "projects", encoded, convID+".jsonl"),
+	write(t, transcriptPath(scratch, api, convID),
 		`{"type":"user","cwd":`+strconv.Quote(api)+`,"message":{"role":"user","content":"hello"}}`+"\n"+
 			`{"type":"ai-title","aiTitle":`+strconv.Quote(title)+`}`+"\n")
-	convPane, err := openWindow(srv, "api", api, "sleep 1000", convID)
-	if err != nil {
-		t.Fatal(err)
-	}
-	pid, err := srv.Run("display", "-p", "-t", convPane, "#{pane_pid}")
-	if err != nil {
-		t.Fatal(err)
-	}
-	instance := filepath.Join(scratch, ".claude", "sessions", strings.TrimSpace(pid)+".json")
-	conversation := func(status string) {
-		write(t, instance, `{"sessionId":"`+convID+`","status":"`+status+`","cwd":"`+api+`"}`)
-	}
+	convPane, conversation := conversationIn(t, srv, scratch, "api", api, convID)
 	conversation("waiting")
 
 	// The scratch is temporary, which is no project; here both are.
-	k := newKnown()
-	k.root[web], k.root[api] = web, api
-	var update func(m model, msg tea.Msg) model
-	update = func(m model, msg tea.Msg) model {
-		if msg == nil {
-			return m
-		}
-		if batch, ok := msg.(tea.BatchMsg); ok {
-			for _, c := range batch {
-				if c != nil {
-					m = update(m, c())
-				}
-			}
-			return m
-		}
-		next, _ := m.Update(msg)
-		return next.(model)
-	}
-	read := func(m model) model { return update(m, m.read()()) }
+	k := knownRoots(web, api)
+	read := func(m model) model { return updated(m, m.read()()) }
 	// press types a key and runs what it asks.
 	press := func(m model, k tea.Key) model {
 		next, c := m.Update(tea.KeyPressMsg(k))
 		m = next.(model)
 		if c != nil {
-			m = update(m, c())
+			m = updated(m, c())
 		}
 		return m
 	}
@@ -6578,25 +5728,8 @@ func TestTabGoesToWhatFailed(t *testing.T) {
 	}
 
 	// shot saves what the person sees, the workspace's pane beside it.
-	shot := 0
 	frame := func(name string, v model) {
-		if shots == "" {
-			return
-		}
-		if shot++; shot > 6 {
-			return
-		}
-		var b strings.Builder
-		fmt.Fprintf(&b, "\x1b]10;%s\x1b\\\x1b]11;%s\x1b\\\x1b[2J\x1b[H", theme.Hex(g.Ink), g.Surface)
-		for _, l := range strings.Split(v.View().Content, "\n") {
-			b.WriteString(l + "\x1b[0m" + strings.Repeat(" ", max(120-ansi.StringWidth(l), 0)) + "\r\n")
-		}
-		if v.screen == onProject {
-			b.WriteString(drawnStatus(t, srv))
-		}
-		if err := os.WriteFile(filepath.Join(shots, name), []byte(strings.TrimSuffix(b.String(), "\r\n")+"\x1b[0m"), 0o644); err != nil {
-			t.Error(err)
-		}
+		shots.panel(name, v, srv, false)
 	}
 
 	// From the projects screen: the conversation that waits first, then
@@ -6758,7 +5891,7 @@ func typedOnProjects(t *testing.T, port string) []string {
 	for _, r := range ":" + port {
 		m, _ = press(t, m, string(r))
 	}
-	return plainLines(regexp.MustCompile("\x1b\\[[0-9;]*m"), m)
+	return plainLines(m)
 }
 
 // Where lsof is not installed, typing :port names the process that
@@ -6807,12 +5940,7 @@ func TestListeningWithoutLsofSaysConnCannotSeeAnUnattributablePort(t *testing.T)
 // Where lsof is not installed, conn x :port reaches the process that
 // listens there: the address finds it by its pid.
 func TestListeningWithoutLsofFindsTheHolderForAVerb(t *testing.T) {
-	if _, err := exec.LookPath("tmux"); err != nil {
-		t.Skip("no tmux")
-	}
-	scratch := t.TempDir()
-	t.Setenv("CONN_SOCKET", filepath.Join(scratch, "s"))
-	t.Setenv("HOME", scratch)
+	_, scratch := tmuxScratch(t)
 	withoutLsof(t)
 	port := listenHere(t)
 	h, err := readHere(scratch, scratch)

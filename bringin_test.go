@@ -5,7 +5,6 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"regexp"
 	"strconv"
 	"strings"
 	"syscall"
@@ -13,9 +12,6 @@ import (
 	"time"
 
 	tea "charm.land/bubbletea/v2"
-	"github.com/charmbracelet/x/ansi"
-	"github.com/w0zro/conn/internal/theme"
-	"github.com/w0zro/conn/internal/tmux"
 )
 
 // A conversation running in a terminal conn did not start is a row on
@@ -30,35 +26,15 @@ import (
 // the claude that picks the conversation back up is a stand-in that
 // writes its instance file as Claude Code would.
 func TestAConversationFromAnotherTerminalComesIn(t *testing.T) {
-	bin, err := exec.LookPath("tmux")
-	if err != nil {
-		t.Skip("no tmux")
-	}
-	shots := os.Getenv("SHOTS")
-	wear(theme.Dark)
-	t.Cleanup(undress)
-	g := theme.Dark
+	shots, g := darkShots(t, 0)
 
-	scratch, err := os.MkdirTemp("/tmp", "cs-")
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() { _ = os.RemoveAll(scratch) })
-	scratch, _ = filepath.EvalSymlinks(scratch)
-	t.Setenv("HOME", scratch)
-	t.Setenv("CLAUDE_CONFIG_DIR", filepath.Join(scratch, ".claude"))
+	bin, scratch := tmuxScratch(t)
 	t.Setenv("LC_ALL", "C.UTF-8")
-	web := filepath.Join(scratch, "web")
-	if err := os.MkdirAll(web, 0o755); err != nil {
-		t.Fatal(err)
-	}
-	git(t, web, "init", "-q")
-	git(t, web, "commit", "-q", "--allow-empty", "-m", "first")
+	web := newRepo(t, filepath.Join(scratch, "web"))
 
 	const title = "Move the flag into config"
 	s1 := "aaaaaaaa-0000-0000-0000-000000000001"
-	encoded := regexp.MustCompile("[^A-Za-z0-9]").ReplaceAllString(web, "-")
-	write(t, filepath.Join(scratch, ".claude", "projects", encoded, s1+".jsonl"),
+	write(t, transcriptPath(scratch, web, s1),
 		`{"type":"user","cwd":`+strconv.Quote(web)+`,"message":{"role":"user","content":"move the flag into config"}}`+"\n"+
 			`{"type":"ai-title","aiTitle":`+strconv.Quote(title)+`}`+"\n")
 
@@ -74,19 +50,7 @@ func TestAConversationFromAnotherTerminalComesIn(t *testing.T) {
 	}
 	t.Setenv("PATH", stubs+string(os.PathListSeparator)+os.Getenv("PATH"))
 
-	path := write(t, filepath.Join(scratch, "tmux.conf"), conf(g))
-	srv := &tmux.Server{Tmux: bin, Socket: filepath.Join(scratch, "s")}
-	t.Cleanup(func() { _ = srv.Down() })
-	out, err := srv.Run("-f", path, "new-session", "-d", "-s", sessionName, "-x", "120", "-y", "36", "-c", scratch, "-P", "-F", "#{window_id} #{pane_id}", "sleep 1000")
-	if err != nil {
-		t.Fatal(err)
-	}
-	win, own, _ := strings.Cut(strings.TrimSpace(out), " ")
-	if _, err := srv.Do(tmux.SetPane(own, panelMark, "1")); err != nil {
-		t.Fatal(err)
-	}
-	ws := newWorkspace(srv, win, own, "/x")
-	ws.hold = "sleep 1000"
+	srv, ws, own := panelWindow(t, bin, scratch, g)
 
 	// A dev server runs in conn, a row to go to and tab from.
 	devPane, err := startNamed(srv, "dev", "exec sleep 1000", web, web, roleStack)
@@ -117,40 +81,12 @@ func TestAConversationFromAnotherTerminalComesIn(t *testing.T) {
 	}
 
 	// The scratch is temporary, which is no project; here it is one.
-	k := newKnown()
-	k.root[web] = web
+	k := knownRoots(web)
 
-	// pump runs what a key or a read asks for, and what that asks for in
-	// turn, as the program would.
-	var pump func(m model, c tea.Cmd, depth int) model
-	pump = func(m model, c tea.Cmd, depth int) model {
-		if c == nil || depth > 8 {
-			return m
-		}
-		got := make(chan tea.Msg, 1)
-		go func() { got <- c() }()
-		var msg tea.Msg
-		select {
-		case msg = <-got:
-		case <-time.After(2 * time.Second):
-			return m
-		}
-		if msg == nil {
-			return m
-		}
-		if batch, ok := msg.(tea.BatchMsg); ok {
-			for _, b := range batch {
-				m = pump(m, b, depth+1)
-			}
-			return m
-		}
-		next, more := m.Update(msg)
-		return pump(next.(model), more, depth+1)
-	}
-	read := func(m model) model { return pump(m, m.read(), 0) }
+	read := func(m model) model { return pump(m, m.read(), 8) }
 	press := func(m model, k tea.Key) model {
 		next, c := m.Update(tea.KeyPressMsg(k))
-		return pump(next.(model), c, 0)
+		return pump(next.(model), c, 8)
 	}
 	typed := func(m model, r rune) model { return press(m, tea.Key{Code: r, Text: string(r)}) }
 	// The web panel, read from the machine, the cursor on the
@@ -176,10 +112,9 @@ func TestAConversationFromAnotherTerminalComesIn(t *testing.T) {
 		_, f := m.draw()
 		return f.say
 	}
-	styles := regexp.MustCompile(`#\[[^\]]*\]`)
 	bar := func() string {
 		got, _ := srv.Global(barMark)
-		return strings.Join(strings.Fields(styles.ReplaceAllString(got, "")), " ")
+		return strings.Join(strings.Fields(plainText(got)), " ")
 	}
 	titleAndBell := func() string {
 		got, err := srv.Run("display", "-p", "-t", sessionName, "#{T:set-titles-string} #{window_bell_flag}")
@@ -198,24 +133,12 @@ func TestAConversationFromAnotherTerminalComesIn(t *testing.T) {
 		return nil
 	}
 
-	var said strings.Builder
 	frame := func(name string, v model) {
-		if shots == "" {
+		if !shots.on() {
 			return
 		}
-		fmt.Fprintf(&said, "%s: %s\n", name, titleAndBell())
-		if err := os.WriteFile(filepath.Join(shots, "title-and-bell.txt"), []byte(said.String()), 0o644); err != nil {
-			t.Error(err)
-		}
-		var b strings.Builder
-		fmt.Fprintf(&b, "\x1b]10;%s\x1b\\\x1b]11;%s\x1b\\\x1b[2J\x1b[H", theme.Hex(g.Ink), g.Surface)
-		for _, l := range strings.Split(v.View().Content, "\n") {
-			b.WriteString(l + "\x1b[0m" + strings.Repeat(" ", max(120-ansi.StringWidth(l), 0)) + "\r\n")
-		}
-		b.WriteString(drawnStatus(t, srv))
-		if err := os.WriteFile(filepath.Join(shots, name), []byte(b.String()+"\x1b[0m"), 0o644); err != nil {
-			t.Error(err)
-		}
+		shots.note("title-and-bell.txt", fmt.Sprintf("%s: %s", name, titleAndBell()))
+		shots.panel(name, v, srv, true)
 	}
 
 	// Still working, it can come in when its turn ends, and nothing is
@@ -309,7 +232,7 @@ func TestAConversationFromAnotherTerminalComesIn(t *testing.T) {
 
 	// tab reaches it like any waiting conversation, from another row.
 	m = read(m)
-	m = pump(m, m.showing(devPane, true), 0)
+	m = pump(m, m.showing(devPane, true), 8)
 	m.in = devPane
 	m = press(m, tea.Key{Code: tea.KeyTab})
 	if m.in != in.ID {

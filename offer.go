@@ -122,7 +122,15 @@ type offerModel struct {
 // about.
 func newOffer(srv *tmux.Server, as role, p project, dir, own string) offerModel {
 	o := offerModel{srv: srv, as: as, p: p, dir: dir, own: own, width: 80, height: 24}
-	o.list = established(readStarted(startedPath(srv.Socket)), p.belongs, as)
+	starts := readStarted(startedPath(srv.Socket))
+	o.list = established(starts, p.belongs, as)
+	// The stack lists what is down; with none down, all that is written
+	// down, which enter finds running already.
+	if ps, err := panes(srv); err == nil && as == roleStack {
+		if d := down(starts, ranIn(ps, rootOf), p); len(d) > 0 {
+			o.list = d
+		}
+	}
 	o.written = len(o.list) > 0
 	o.pending = map[string]bool{}
 	for _, root := range o.repos() {

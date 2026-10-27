@@ -25,29 +25,12 @@ import (
 // is not this one's. Read from the screen as the person has it: the
 // built conn in a tmux of its own, its keys sent, its screen captured.
 func TestAStackProcessNotRunningIsADownRow(t *testing.T) {
-	bin, err := exec.LookPath("tmux")
-	if err != nil {
-		t.Skip("no tmux")
-	}
-	shots := os.Getenv("SHOTS")
 	g := theme.Dark
+	shots := newShots(t, g, 0)
 
 	// Not under /tmp, which conn takes for scratch that is no project.
-	scratch, err := os.MkdirTemp("/var/tmp", "cs-")
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() { _ = os.RemoveAll(scratch) })
-	scratch, _ = filepath.EvalSymlinks(scratch)
-	repo := func(name string) string {
-		dir := filepath.Join(scratch, name)
-		if err := os.MkdirAll(dir, 0o755); err != nil {
-			t.Fatal(err)
-		}
-		git(t, dir, "init", "-q")
-		git(t, dir, "commit", "-q", "--allow-empty", "-m", "first")
-		return dir
-	}
+	bin, scratch := tmuxScratchIn(t, "/var/tmp")
+	repo := func(name string) string { return newRepo(t, filepath.Join(scratch, name)) }
 	web, shop := repo("web"), repo("shop")
 	conn := filepath.Join(t.TempDir(), "conn")
 	build := exec.Command("go", "build", "-o", conn, ".")
@@ -74,7 +57,7 @@ func TestAStackProcessNotRunningIsADownRow(t *testing.T) {
 		}
 	}
 
-	env := []string{"HOME=" + scratch, "CLAUDE_CONFIG_DIR=" + filepath.Join(scratch, ".claude"), "LC_ALL=C.UTF-8"}
+	env := []string{"HOME=" + scratch, "CONN_SOCKET=" + socket, "CLAUDE_CONFIG_DIR=" + filepath.Join(scratch, ".claude"), "LC_ALL=C.UTF-8"}
 	clean := func() []string {
 		var out []string
 		for _, e := range os.Environ() {
@@ -135,15 +118,10 @@ func TestAStackProcessNotRunningIsADownRow(t *testing.T) {
 	}
 	keys := func(k ...string) { tm(append([]string{"send-keys", "-t", "outer"}, k...)...) }
 	frame := func(name string) {
-		if shots == "" {
+		if !shots.on() {
 			return
 		}
-		var b strings.Builder
-		fmt.Fprintf(&b, "\x1b]10;%s\x1b\\\x1b]11;%s\x1b\\\x1b[2J\x1b[H", theme.Hex(g.Ink), g.Surface)
-		b.WriteString(strings.Join(screen(true), "\x1b[0m\r\n") + "\x1b[0m")
-		if err := os.WriteFile(filepath.Join(shots, name), []byte(b.String()), 0o644); err != nil {
-			t.Error(err)
-		}
+		shots.screen(name, strings.Join(screen(true), "\x1b[0m\r\n"))
 	}
 
 	// at is the line of the panel where a word stands on its own.
@@ -211,7 +189,7 @@ func TestAStackProcessNotRunningIsADownRow(t *testing.T) {
 					loud = loud || !quiet[fg] && !dim
 				}
 			}
-			for _, m := range regexp.MustCompile("\x1b\\[([0-9;]*)m").FindAllStringSubmatchIndex(raw, -1) {
+			for _, m := range sgrStyle.FindAllStringSubmatchIndex(raw, -1) {
 				segment(m[0])
 				last = m[1]
 				p := strings.Split(raw[m[2]:m[3]], ";")
@@ -322,6 +300,7 @@ func TestAStackProcessNotRunningIsADownRow(t *testing.T) {
 
 	// xx on a down row forgets it and stops nothing.
 	open("web")
+	wait("web's rows", func(panel []string, _ string) bool { return downAt(panel, "api") >= 0 })
 	keys("j")
 	wait("the workspace on api", func(_ []string, space string) bool {
 		return regexp.MustCompile(`\bapi\b`).MatchString(space) && strings.Contains(space, "sleep 1001")
@@ -337,6 +316,7 @@ func TestAStackProcessNotRunningIsADownRow(t *testing.T) {
 	// ss lists what is down and no longer what was forgotten; enter
 	// starts it, and web says nothing is down.
 	open("web")
+	wait("web's rows", func(panel []string, _ string) bool { return downAt(panel, "worker") >= 0 })
 	keys("s", "s")
 	lines = wait("ss listing worker", func(_ []string, space string) bool {
 		return strings.Contains(space, "Start these in web?") && regexp.MustCompile(`worker\s+sleep 1002`).MatchString(space)

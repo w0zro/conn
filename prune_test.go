@@ -325,31 +325,28 @@ func TestStAndSsListWhatIsWrittenDownAndPruneIt(t *testing.T) {
 	}
 }
 
+// keyNamed is the key a test names: esc, enter, or a character.
+func keyNamed(k string) tea.Key {
+	switch k {
+	case "esc":
+		return tea.Key{Code: tea.KeyEscape}
+	case "enter":
+		return tea.Key{Code: tea.KeyEnter}
+	}
+	return tea.Key{Text: k, Code: []rune(k)[0]}
+}
+
 // pressOffer is a key pressed on the question.
 func pressOffer(t *testing.T, o offerModel, k string) (offerModel, tea.Cmd) {
 	t.Helper()
-	key := tea.Key{Text: k, Code: []rune(k)[0]}
-	switch k {
-	case "esc":
-		key = tea.Key{Code: tea.KeyEscape}
-	case "enter":
-		key = tea.Key{Code: tea.KeyEnter}
-	}
-	next, cmd := o.Update(tea.KeyPressMsg(key))
+	next, cmd := o.Update(tea.KeyPressMsg(keyNamed(k)))
 	return next.(offerModel), cmd
 }
 
 // press is a key pressed on the panel.
 func press(t *testing.T, m model, k string) (model, tea.Cmd) {
 	t.Helper()
-	key := tea.Key{Text: k, Code: []rune(k)[0]}
-	switch k {
-	case "esc":
-		key = tea.Key{Code: tea.KeyEscape}
-	case "enter":
-		key = tea.Key{Code: tea.KeyEnter}
-	}
-	next, cmd := m.Update(tea.KeyPressMsg(key))
+	next, cmd := m.Update(tea.KeyPressMsg(keyNamed(k)))
 	return next.(model), cmd
 }
 

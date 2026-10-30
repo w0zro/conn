@@ -116,6 +116,17 @@ func TestTheClaudeThemeSpendsItsColorsWhereItSays(t *testing.T) {
 			t.Errorf("%s takes the accent", mode)
 		}
 	}
+	// A token conn colors carries its shimmer, so nothing of the
+	// base's passes over it; a slot's shimmer is the base's own slot.
+	for _, k := range []string{"claude", "permission", "promptBorder", "inactive", "autoAccept", "fastMode", "warning"} {
+		shimmer, ok := at[k+"Shimmer"]
+		if !strings.HasPrefix(at[k], "ansi:") && (!ok || strings.HasPrefix(shimmer, "ansi:")) {
+			t.Errorf("%s is %s and its shimmer is %q", k, at[k], shimmer)
+		}
+	}
+	if at["claudeBlue_FOR_SYSTEM_SPINNER"] != Dark.Turning {
+		t.Errorf("Claude Code's own spinner is %s, not the panel's %s", at["claudeBlue_FOR_SYSTEM_SPINNER"], Dark.Turning)
+	}
 }
 
 // RefreshClaudeTheme keeps the file on the ground the server is on: it

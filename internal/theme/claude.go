@@ -43,6 +43,7 @@ type token struct{ Name, Color string }
 func ClaudeTheme(g Ground) [][]token {
 	var (
 		yellow, cyan  = g.Scheme[3], g.Scheme[6]
+		yellowBright  = g.Scheme[11]
 		faint, accent = g.Faint, g.Accent
 		ink           = Hex(g.Ink)
 	)
@@ -52,10 +53,17 @@ func ClaudeTheme(g Ground) [][]token {
 		// The mark at rest, which the base draws in the pane's bright
 		// red: the same hue it turns at work.
 		{"clawd_body", g.AtWork},
+		// The mark's eyes are holes in it: the ground shows through.
+		{"clawd_background", Hex(g.Ground)},
+		// The spinner of Claude Code's own work, compacting and the
+		// like, turns as the panel's does.
+		{"claudeBlue_FOR_SYSTEM_SPINNER", g.Turning},
+		{"claudeBlueShimmer_FOR_SYSTEM_SPINNER", g.Turning},
 	}, {
 		{"text", ink},
 		{"inverseText", Hex(g.Ground)},
 		{"inactive", g.Gray},
+		{"inactiveShimmer", g.Parchment},
 		// subtle is the only color Claude Code draws the > before a
 		// message of yours in, so it takes the cursor's color, the other
 		// mark of where you write, and with it the rest it marks: a
@@ -64,6 +72,10 @@ func ClaudeTheme(g Ground) [][]token {
 		{"subtle", g.Cursor},
 		{"suggestion", g.Gray},
 		{"remember", cyan},
+		// The labels of a brief: you in the color of where you write,
+		// Claude in its mark's.
+		{"briefLabelYou", g.Cursor},
+		{"briefLabelClaude", g.AtWork},
 	}, {
 		// A verdict is slot-shaped: it follows the pane's own sixteen.
 		{"success", "ansi:green"},
@@ -76,14 +88,20 @@ func ClaudeTheme(g Ground) [][]token {
 	}, {
 		// The accent is "you, here": the one dialog that stops and waits
 		// for you. A mode is quiet unless it changes what Claude may do.
+		// A shimmer is a step brighter than what it runs over, so a
+		// token conn colors carries its shimmer: the base's would be
+		// another color passing over it.
 		{"promptBorder", faint},
+		{"promptBorderShimmer", g.Gray},
 		{"permission", accent},
 		{"permissionShimmer", g.Shimmer},
 		{"planMode", cyan},
 		{"autoAccept", yellow},
+		{"autoAcceptShimmer", yellowBright},
 		{"bashBorder", g.Parchment},
 		{"ide", cyan},
 		{"fastMode", yellow},
+		{"fastModeShimmer", yellowBright},
 	}, {
 		{"diffAdded", g.DiffAddedBg},
 		{"diffRemoved", g.DiffRemovedBg},
@@ -99,6 +117,8 @@ func ClaudeTheme(g Ground) [][]token {
 		{"selectionBg", g.Chosen},
 		{"bashMessageBackgroundColor", g.ToolBg},
 		{"memoryBackgroundColor", g.ToolBg},
+		// The sidebar beside the composer is the panel's own ground.
+		{"composerSidebarBackground", g.Surface},
 	}, {
 		{"rate_limit_fill", accent},
 		{"rate_limit_empty", g.Border},
